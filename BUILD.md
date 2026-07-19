@@ -219,6 +219,7 @@ Then point the gateway at it:
 
 ```
 agentcore add gateway \
+  --name showrunner-gateway \
   --authorizer-type CUSTOM_JWT \
   --discovery-url https://cognito-idp.<region>.amazonaws.com/<user-pool-id>/.well-known/openid-configuration \
   --allowed-audience <cognito-app-client-id>
