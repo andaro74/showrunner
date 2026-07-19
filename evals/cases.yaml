@@ -1,0 +1,7 @@
+# LLM-as-a-judge eval scenarios. Populated in build-order step 9 (PROJECT.md Phase 11).
+# Planned cases:
+#   1. correct show resolved when titles collide
+#   2. no hallucinated episode numbers
+#   3. find_nearby returns cinemas actually open at showtime
+#   4. travel_time is a plausible number
+cases: []
