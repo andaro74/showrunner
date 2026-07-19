@@ -186,14 +186,29 @@ Commit.
 Adopt them a la carte — each is a separate, reviewable commit and a separate paragraph in your post.
 
 ```
-agentcore add memory       # remember genre prefs across sessions
+agentcore add memory --name ShowRunnerMemory --strategies SEMANTIC,SUMMARIZATION,USER_PREFERENCE --expiry 30       # remember genre prefs across sessions
 agentcore add evaluator    # LLM-as-a-judge eval cases
 agentcore add online-eval  # optional: continuous eval on live traces
 ```
 
 There is no `agentcore add identity`. Inbound Cognito JWT identity is configured as the
-gateway's JWT authorizer — you provision the Cognito user pool (the OAuth provider) first,
-then point the gateway at it:
+gateway's JWT authorizer, and the Cognito pool is an **external prerequisite** — it isn't part
+of the AgentCore CDK stack; the gateway just references it by OIDC discovery URL. (Don't
+hand-edit `agentcore/cdk/` to add it: that project is generated from the manifest.)
+
+Provision it first, with [`scripts/create_cognito.sh`](scripts/create_cognito.sh):
+
+```bash
+bash scripts/create_cognito.sh us-west-2
+```
+
+That script is the reproducible record of this step. It creates the user pool **and an app
+client** — you need both: the pool ID gives you the discovery URL, and the client ID is the
+`--allowed-audience`. A pool on its own is not enough, and without a client nobody can obtain a
+token at all. It's idempotent (re-running reuses existing resources), writes the four
+`COGNITO_*` values plus `AWS_REGION` into `.env`, and never prints the client secret.
+
+Then point the gateway at it:
 
 ```
 agentcore add gateway \

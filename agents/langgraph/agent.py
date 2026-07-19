@@ -24,7 +24,7 @@ TVMAZE_SERVER = "mcp_servers.tvmaze.server"
 PLACES_SERVER = "mcp_servers.places.server"
 
 DEFAULT_MODEL_ID = "us.anthropic.claude-sonnet-5-20250929-v1:0"
-DEFAULT_REGION = "us-east-1"
+DEFAULT_REGION = "us-west-2"
 
 
 def _stdio(module: str) -> StdioConnection:

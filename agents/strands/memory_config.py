@@ -23,7 +23,7 @@ from bedrock_agentcore.memory.constants import StrategyType
 
 MEMORY_ID_ENV = "AGENTCORE_MEMORY_ID"
 REGION_ENV = "AWS_REGION"
-DEFAULT_REGION = "us-east-1"
+DEFAULT_REGION = "us-west-2"
 
 # Used only when no authenticated actor is available (local dev).
 DEFAULT_ACTOR_ID = "anonymous"
