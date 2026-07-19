@@ -1,7 +1,7 @@
 """Thin httpx client over Overpass — amenities within a radius of a lat/lon.
 
 One responsibility: build the Overpass QL, POST it, parse `elements[]` into typed
-`Place`s. Sends a descriptive User-Agent and caches responses (CLAUDE.md rule #4).
+`Place`s. Sends a descriptive User-Agent and caches responses (CLAUDE.md rule #5).
 """
 
 from __future__ import annotations

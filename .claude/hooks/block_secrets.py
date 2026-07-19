@@ -3,7 +3,7 @@
 Fires before the Bash tool runs. If the command is a `git commit`, it scans the
 staged changes for (a) a staged `.env`/`.env.*` file, (b) API-key-shaped strings,
 and (c) any real value pulled from the local `.env`. Exit 2 blocks the commit and
-reports why (CLAUDE.md hard rule #3: no keys or secrets in git).
+reports why — no keys or secrets in git.
 
 This guards commits Claude runs. For commits made directly in a terminal, install
 the same scan as a native git pre-commit hook.

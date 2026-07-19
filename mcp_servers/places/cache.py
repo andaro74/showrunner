@@ -1,7 +1,7 @@
 """Shared User-Agent + response cache for the OSM clients.
 
 Public OSM endpoints (Nominatim/Overpass/OSRM) are rate-limited and block
-requests without a descriptive User-Agent (CLAUDE.md hard rule #4). Every
+requests without a descriptive User-Agent (CLAUDE.md hard rule #5). Every
 client sends `user_agent()` on each request and caches responses through a
 `ResponseCache`, so repeated lookups don't re-hit the upstream service.
 """

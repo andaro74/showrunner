@@ -87,7 +87,7 @@ async def test_find_nearby_parses_and_filters(mock_overpass):
 
     # QL was built with the amenity + around clause.
     assert 'nwr["amenity"="cinema"](around:1500,40.7128,-74.006)' in mock_overpass["ql"]
-    # User-Agent sent per CLAUDE.md hard rule #4.
+    # User-Agent sent per CLAUDE.md hard rule #5.
     assert mock_overpass["user_agent"] == user_agent()
 
 

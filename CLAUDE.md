@@ -52,9 +52,10 @@ nothing.
 ## Hard rules
 
 1. **MCP servers stay framework-agnostic.** No Strands or LangChain imports inside `mcp_servers/` — both frameworks must consume them unchanged.
-2. **Identity before Gateway.** If enabling Gateway, configure Identity first; Gateway relies on Identity's OAuth provider.
-3. **Every new tool ships with** a pytest test and a one-line entry in the relevant SKILL.md.
-4. **Set a descriptive User-Agent** on every Nominatim/Overpass/OSRM request, and cache responses — public instances are rate-limited.
+2. **Identity → Gateway → Policy Engine → Policies.** Gateway relies on Identity's OAuth provider; the policy engine needs an existing gateway; Cedar policies validate against a schema generated from the *deployed* gateway's tools (so they need its real ARN). Roll policies out `LOG_ONLY`, then `ENFORCE`.
+3. **A new gateway tool ships with a Cedar permit.** `policies/showrunner_tools.cedar` permits each tool individually and Cedar is default-deny — so an unlisted tool is refused. Adding a tool without adding its permit means it silently stops working through the gateway.
+4. **Every new tool ships with** a pytest test and a one-line entry in the relevant SKILL.md.
+5. **Set a descriptive User-Agent** on every Nominatim/Overpass/OSRM request, and cache responses — public instances are rate-limited.
 
 ## Conventions
 
@@ -71,5 +72,5 @@ Configured in `.claude/settings.json`, backed by scripts in `.claude/hooks/`:
   `agents/`, runs `ruff check .` and `uv run pytest -q`; failures are reported back.
 - **PreToolUse** (`block_secrets.py`) — blocks a `git commit` whose staged changes
   contain a `.env` file, an API-key-shaped string, or a real value from local `.env`
-  (enforces hard rule #3). Only guards commits Claude runs; install the same scan as
+  (no secrets in git). Only guards commits Claude runs; install the same scan as
   a native git pre-commit hook to cover manual commits too.

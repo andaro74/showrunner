@@ -21,6 +21,7 @@ The project is deliberately two things at once:
 - **Memory** — short-term (session) + long-term (genre preferences across sessions).
 - **Identity** — inbound Cognito JWT; scopes memory per real user (anti-impersonation via the `sub` claim). Not a standalone resource: it's the `CUSTOM_JWT` authorizer on a gateway, pointed at Cognito's OIDC discovery URL.
 - **Gateway** — managed tool routing/auth; production alternative to self-hosting the MCP servers.
+- **Authorization (Policy Engine)** — Cedar policies decide which tool actions the gateway may execute. Identity answers *who is calling*; this answers *what they may do*. Default-deny, with each of the seven tools permitted individually (`policies/`), so a newly added tool is refused until explicitly approved.
 - **Evaluation** — LLM-as-a-judge; offline in CI + optional online on traces.
 - **Observability** — built-in OTEL traces → CloudWatch.
 
@@ -56,4 +57,5 @@ Identity validates the caller → Memory loads their history → the agent reaso
 
 - Free APIs: TVmaze (`api.tvmaze.com`), Overpass, Nominatim, OSRM.
 - Adapters: `langchain-mcp-adapters` (bridges MCP into LangGraph, which has no native MCP support).
-- Ordering rule: if Gateway is enabled, configure Identity first — Gateway relies on Identity's OAuth provider.
+- Ordering rule: **Identity → Gateway → Policy Engine → Policies.** Gateway relies on Identity's OAuth provider; the policy engine requires an existing gateway; and Cedar policies validate against a schema generated from the *deployed* gateway's tools, so they need its real ARN and targets.
+- Cedar shape: `principal` is `AgentCore::OAuthUser` (from the JWT `sub`), `action` is `AgentCore::Action::"<Target>___<tool>"` (no wildcards), `resource` is the gateway ARN. See `policies/README.md`.

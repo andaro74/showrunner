@@ -221,6 +221,39 @@ This is why the rule is "Identity before Gateway": the OAuth provider must exist
 gateway's `CUSTOM_JWT` authorizer can validate the `sub` claim that scopes memory per user.
 (`agentcore add credential` is for *outbound* credentials the agent uses, not inbound identity.)
 
+### Authorization: Cedar policies
+
+Identity says *who* is calling; a **policy engine** says *what they may do*. Cedar is
+default-deny, so the gateway executes only the tool actions you permit:
+
+```
+principal  AgentCore::OAuthUser              # from the JWT `sub`; claims exposed as tags
+action     AgentCore::Action::"<Target>___<tool>"   # triple underscore, NO wildcards
+resource   AgentCore::Gateway::"<gateway-arn>"      # the gateway, not the tool
+```
+
+The policies live in [`policies/`](policies/) — each of the seven tools permitted
+individually, so a newly added tool stays denied until someone approves it.
+
+The full ordering is **Identity → Gateway → Policy Engine → Policies**. Policies are added
+*last* because they validate against a Cedar schema the engine generates from the **deployed**
+gateway's tool definitions — you need the real ARN and real targets:
+
+```
+agentcore add gateway ...            # + gateway-targets for tvmaze and places
+agentcore deploy                     # gateway now has an ARN
+# substitute the ARN into policies/*.cedar
+agentcore add policy-engine --name ShowRunnerPolicies \
+  --attach-to-gateways <gateway> --attach-mode LOG_ONLY
+agentcore add policy --engine ShowRunnerPolicies --name AllowTools \
+  --source policies/showrunner_tools.cedar
+agentcore deploy
+```
+
+Roll out in **`LOG_ONLY`** first — it evaluates every call and traces whether it *would* be
+denied, without enforcing, so you see what a policy breaks before it breaks it. Flip to
+`ENFORCE` when the traces are clean. (The API default is `ENFORCE`, so `LOG_ONLY` is opt-in.)
+
 Prompt for the memory wiring:
 
 > Wire AgentCore Memory into the Strands agent: short-term for the active session, long-term to store the user's genre preferences and remembered picks. Add `agents/strands/memory_config.py` with named namespaces. Note in the README that Identity's inbound JWT is what makes per-user memory safe (anti-impersonation via the `sub` claim), even though TVmaze itself is keyless.

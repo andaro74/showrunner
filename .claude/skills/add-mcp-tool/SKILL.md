@@ -10,7 +10,7 @@ places), following the patterns already in the repo. Keep the split: `*_client.p
 does HTTP + typed parsing, `server.py` just registers thin tool wrappers.
 
 Run `uv run pytest` after each step — a tool isn't done until its test is green
-(CLAUDE.md hard rule #3).
+(CLAUDE.md hard rule #4).
 
 ## Steps
 
@@ -71,12 +71,29 @@ payload = _payload(result)   # unwrap (content, structured); lists arrive as {"r
 
 Add exactly one line under `## Tools` in that server's `SKILL.md`
 (`mcp_servers/<server>/SKILL.md`), matching the existing `name(args) — summary`
-style. This keeps the tool list discoverable (CLAUDE.md hard rule #3).
+style. This keeps the tool list discoverable (CLAUDE.md hard rule #4).
+
+### 5. Add a Cedar permit (`policies/showrunner_tools.cedar`)
+
+Only if the tool is exposed through the AgentCore Gateway. Cedar is **default-deny**
+and this repo permits each tool individually, so a tool with no permit is refused —
+it will work fine over stdio locally and then silently fail through the gateway.
+
+```cedar
+permit(
+  principal is AgentCore::OAuthUser,
+  action == AgentCore::Action::"<Target>___my_tool",   // triple underscore
+  resource == AgentCore::Gateway::"<GATEWAY_ARN>"
+);
+```
+
+Add an argument bound in `policies/argument_bounds.cedar` if the tool takes anything
+worth capping (`forbid` overrides `permit`). See `policies/README.md`.
 
 ## Gotchas
 
 - **Forgetting the User-Agent header.** Every Nominatim/Overpass/OSRM request must
-  send `user_agent()` (CLAUDE.md hard rule #4) — public instances block
+  send `user_agent()` (CLAUDE.md hard rule #5) — public instances block
   unidentified requests. Set it per request, not just on the client, so injected
   test clients carry it too.
 - **Not handling empty Overpass results.** Overpass returns `{"elements": []}` for
