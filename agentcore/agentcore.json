@@ -10,13 +10,19 @@
   "runtimes": [],
   "memories": [
     {
-      "name": "showrunnerMemory",
+      "name": "ShowRunnerMemory",
       "eventExpiryDuration": 30,
       "strategies": [
         {
           "type": "SEMANTIC",
           "namespaceTemplates": [
             "/users/{actorId}/facts"
+          ]
+        },
+        {
+          "type": "SUMMARIZATION",
+          "namespaceTemplates": [
+            "/summaries/{actorId}/{sessionId}"
           ]
         },
         {
