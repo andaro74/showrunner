@@ -19,10 +19,16 @@ Run tests after every change to `mcp_servers/` or `agents/`. A change isn't done
 tests don't need it — `BedrockAgentCoreApp` runs standalone, and the MCP servers run over stdio.
 
 Every `agentcore` command except `create` needs a project manifest (`agentcore/agentcore.json`);
-without one you get *"No agentcore project found."* `create` mints it — but it scaffolds a **new
-child directory** with its own `git init`, so it is NOT run inside this repo. The deploy project
-lives beside it at `../showrunnerAgentcore/`; run `agentcore add …` / `deploy` from there.
-(`import` does not bootstrap a repo — it adopts resources that already exist in AWS.)
+without one you get *"No agentcore project found."* That manifest now lives in this repo at
+`agentcore/`, so run `agentcore add …` / `validate` / `deploy` from the repo root.
+
+Don't re-run `agentcore create` here — it scaffolds a **new child directory** with its own
+`git init` rather than initializing in place (that's why `agentcore/` was generated elsewhere
+and moved in). `import` doesn't bootstrap a repo either; it adopts resources already in AWS.
+The CLI is happy with `agentcore/` in a directory it didn't scaffold.
+
+`agentcore/cdk/node_modules/` is gitignored by the generated `cdk/.gitignore`; if it goes
+missing, `npm install` inside `agentcore/cdk/`.
 
 Add primitives with `agentcore add <memory|evaluator|online-eval|gateway|…>` — there is no
 `add identity`; inbound Cognito JWT is the gateway's `CUSTOM_JWT` authorizer.
