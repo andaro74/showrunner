@@ -189,14 +189,13 @@ Adopt them a la carte — each is a separate, reviewable commit and a separate p
 agentcore add memory --name ShowRunnerMemory --strategies SEMANTIC,SUMMARIZATION,USER_PREFERENCE --expiry 30       # remember genre prefs across sessions
 
 agentcore add evaluator \
-  --name ResponseQuality \
+  --name ShowRunnerQuality \
   --type llm-as-a-judge \
   --level SESSION \
   --model us.anthropic.claude-sonnet-4-5-20250514-v1:0 \
   --instructions "Evaluate whether the agent fulfilled the user's request. Context: {context}" \
   --rating-scale 1-5-quality    # LLM-as-a-judge eval cases
 
-agentcore add online-eval  # optional: continuous eval on live traces
 ```
 
 There is no `agentcore add identity`. Inbound Cognito JWT identity is configured as the

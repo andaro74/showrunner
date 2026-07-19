@@ -38,7 +38,7 @@
   "credentials": [],
   "evaluators": [
     {
-      "name": "ResponseQuality",
+      "name": "ShowRunnerQuality",
       "level": "SESSION",
       "config": {
         "llmAsAJudge": {
