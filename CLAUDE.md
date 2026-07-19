@@ -10,10 +10,16 @@ uv run pytest                 # run all tests
 uv run pytest tests/test_x.py # run one test file
 ruff check .                  # lint
 agentcore dev                 # run an agent locally with a test endpoint
-agentcore deploy              # deploy to AgentCore runtime
+agentcore deploy              # deploy to AgentCore runtime (CDK)
 ```
 
 Run tests after every change to `mcp_servers/` or `agents/`. A change isn't done until its test is green.
+
+`agentcore` is a separate Node CLI (not the `bedrock-agentcore` Python SDK). Local dev
+and the tests don't need it — `BedrockAgentCoreApp` runs standalone. `dev`/`deploy` read an
+AgentCore project config; create it once with `agentcore import` (brings this existing repo
+in — use `create` only for a brand-new project). Add primitives with `agentcore add <memory|
+evaluator|online-eval|gateway|…>` (there is no `add identity`).
 
 ## Architecture — three layers (see PROJECT.md for detail)
 

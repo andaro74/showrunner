@@ -169,10 +169,24 @@ Adopt them a la carte — each is a separate, reviewable commit and a separate p
 
 ```
 agentcore add memory       # remember genre prefs across sessions
-agentcore add identity     # inbound Cognito JWT → scopes memory per real user
 agentcore add evaluator    # LLM-as-a-judge eval cases
 agentcore add online-eval  # optional: continuous eval on live traces
 ```
+
+There is no `agentcore add identity`. Inbound Cognito JWT identity is configured as the
+gateway's JWT authorizer — you provision the Cognito user pool (the OAuth provider) first,
+then point the gateway at it:
+
+```
+agentcore add gateway \
+  --authorizer-type CUSTOM_JWT \
+  --discovery-url https://cognito-idp.<region>.amazonaws.com/<user-pool-id>/.well-known/openid-configuration \
+  --allowed-audience <cognito-app-client-id>
+```
+
+This is why the rule is "Identity before Gateway": the OAuth provider must exist before the
+gateway's `CUSTOM_JWT` authorizer can validate the `sub` claim that scopes memory per user.
+(`agentcore add credential` is for *outbound* credentials the agent uses, not inbound identity.)
 
 Prompt for the memory wiring:
 
