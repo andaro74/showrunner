@@ -36,7 +36,47 @@
   ],
   "knowledgeBases": [],
   "credentials": [],
-  "evaluators": [],
+  "evaluators": [
+    {
+      "name": "ResponseQuality",
+      "level": "SESSION",
+      "config": {
+        "llmAsAJudge": {
+          "model": "us.anthropic.claude-sonnet-4-5-20250514-v1:0",
+          "instructions": "Evaluate whether the agent fulfilled the user's request. Context: {context}",
+          "ratingScale": {
+            "numerical": [
+              {
+                "value": 1,
+                "label": "Poor",
+                "definition": "Fails to meet expectations"
+              },
+              {
+                "value": 2,
+                "label": "Fair",
+                "definition": "Partially meets expectations"
+              },
+              {
+                "value": 3,
+                "label": "Good",
+                "definition": "Meets expectations"
+              },
+              {
+                "value": 4,
+                "label": "Very Good",
+                "definition": "Exceeds expectations"
+              },
+              {
+                "value": 5,
+                "label": "Excellent",
+                "definition": "Far exceeds expectations"
+              }
+            ]
+          }
+        }
+      }
+    }
+  ],
   "onlineEvalConfigs": [],
   "agentCoreGateways": [],
   "policyEngines": [],
