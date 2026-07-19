@@ -37,7 +37,9 @@ def _run(args: list[str]) -> str:
 def _staged_added_lines() -> str:
     diff = _run(["git", "diff", "--cached", "--unified=0"])
     return "\n".join(
-        line[1:] for line in diff.splitlines() if line.startswith("+") and not line.startswith("+++")
+        line[1:]
+        for line in diff.splitlines()
+        if line.startswith("+") and not line.startswith("+++")
     )
 
 
@@ -82,7 +84,7 @@ def _problems() -> list[str]:
 def main() -> int:
     try:
         event = json.load(sys.stdin)
-    except (json.JSONDecodeError, ValueError):
+    except json.JSONDecodeError, ValueError:
         return 0
 
     command = event.get("tool_input", {}).get("command", "")

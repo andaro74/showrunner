@@ -39,7 +39,7 @@ def _is_watched(file_path: str) -> bool:
 def main() -> int:
     try:
         event = json.load(sys.stdin)
-    except (json.JSONDecodeError, ValueError):
+    except json.JSONDecodeError, ValueError:
         return 0
 
     if not _is_watched(_edited_path(event)):

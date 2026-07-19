@@ -57,6 +57,28 @@ Copy `.env.example` to `.env` if you're wiring up the AgentCore layer; the core 
 
 Both are framework-agnostic FastMCP servers — they contain zero Strands or LangChain code, which is exactly why both agents can share them.
 
+## Memory, and why Identity is what makes it safe
+
+The Strands agent uses AgentCore Memory in two tiers ([`agents/strands/memory_config.py`](agents/strands/memory_config.py)):
+
+- **Short-term** — the active session's turns, keyed by `(actor_id, session_id)` and replayed into the next turn.
+- **Long-term** — durable records under two named namespaces, both scoped by actor:
+  - `/showrunner/actors/{actor_id}/preferences` — genre preferences (user-preference strategy)
+  - `/showrunner/actors/{actor_id}/picks` — what's already been suggested (semantic strategy)
+
+**`{actor_id}` is the load-bearing part.** It comes from the `sub` claim of Identity's inbound
+Cognito JWT. Without that, "who is this user?" would be a value the *caller* supplies — so anyone
+could pass someone else's id and read their memory. The JWT is verified upstream by the gateway's
+`CUSTOM_JWT` authorizer; the agent only decodes the already-verified claims. That's the
+anti-impersonation story, and it's why the ordering rule is **Identity before Gateway**.
+
+Note the asymmetry worth calling out: TVmaze and OpenStreetMap are *keyless* — the APIs need no
+auth at all. Identity isn't here to reach the upstream data. It's here purely to keep one user's
+remembered preferences from leaking into another user's movie night.
+
+Memory is optional: with no `AGENTCORE_MEMORY_ID` set, the agent runs statelessly (that's how the
+tests run — no AWS required).
+
 ## How it was built (build in public)
 
 The repo grows one verified, single-purpose commit at a time — so `git log` *is* the tutorial:

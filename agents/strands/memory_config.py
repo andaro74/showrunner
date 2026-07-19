@@ -1,5 +1,72 @@
-"""AgentCore Memory namespaces for the Strands agent.
+"""AgentCore Memory configuration for the Strands agent.
 
-Short-term (session) + long-term (genre preferences, remembered picks).
-Wired in build-order step 9 (PROJECT.md Phase 11).
+Two tiers:
+- **Short-term** — the active session's conversation turns, keyed by
+  (`actor_id`, `session_id`). Replayed into the next turn.
+- **Long-term** — durable records under the *named namespaces* below: the user's
+  genre preferences and the picks they've been shown before.
+
+Every namespace is scoped by `{actor_id}`, so one user can never read another's
+memory. The actor id comes from Identity's inbound JWT `sub` claim — see the
+Memory + Identity note in the README.
+
+Memory is optional: with no `AGENTCORE_MEMORY_ID` set (local dev, tests) the
+agent runs statelessly.
 """
+
+from __future__ import annotations
+
+import os
+
+from bedrock_agentcore.memory import MemorySessionManager
+from bedrock_agentcore.memory.constants import StrategyType
+
+MEMORY_ID_ENV = "AGENTCORE_MEMORY_ID"
+REGION_ENV = "AWS_REGION"
+DEFAULT_REGION = "us-east-1"
+
+# Used only when no authenticated actor is available (local dev).
+DEFAULT_ACTOR_ID = "anonymous"
+
+# How many recent turns to replay as short-term context.
+SHORT_TERM_TURNS = 5
+# How many long-term records to pull per namespace.
+LONG_TERM_TOP_K = 3
+
+# --- Named long-term namespaces -------------------------------------------
+# `{actor_id}` is filled per request via `namespace_for()`.
+GENRE_PREFERENCES = "/showrunner/actors/{actor_id}/preferences"
+REMEMBERED_PICKS = "/showrunner/actors/{actor_id}/picks"
+
+# Namespace -> the strategy that populates it. Mirrors what `agentcore add
+# memory` should provision for this project.
+NAMESPACE_STRATEGIES: dict[str, StrategyType] = {
+    GENRE_PREFERENCES: StrategyType.USER_PREFERENCE,
+    REMEMBERED_PICKS: StrategyType.SEMANTIC,
+}
+
+
+def namespace_for(template: str, actor_id: str) -> str:
+    """Fill a namespace template for one actor, e.g. /showrunner/actors/u123/picks."""
+    return template.format(actor_id=actor_id)
+
+
+def memory_id() -> str | None:
+    return os.environ.get(MEMORY_ID_ENV) or None
+
+
+def region() -> str:
+    return os.environ.get(REGION_ENV) or DEFAULT_REGION
+
+
+def is_enabled() -> bool:
+    """True when an AgentCore Memory resource is configured."""
+    return memory_id() is not None
+
+
+def build_session_manager() -> MemorySessionManager | None:
+    """MemorySessionManager for the configured memory, or None when disabled."""
+    configured = memory_id()
+    if not configured:
+        return None
+    return MemorySessionManager(memory_id=configured, region_name=region())
