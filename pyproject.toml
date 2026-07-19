@@ -29,4 +29,5 @@ asyncio_mode = "auto"
 testpaths = ["tests"]
 markers = [
     "network: test performs a live network call (e.g. the TVmaze API)",
+    "integration: test spawns the MCP servers as subprocesses over stdio",
 ]
