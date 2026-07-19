@@ -35,11 +35,16 @@ LONG_TERM_TOP_K = 3
 
 # --- Named long-term namespaces -------------------------------------------
 # `{actor_id}` is filled per request via `namespace_for()`.
-GENRE_PREFERENCES = "/showrunner/actors/{actor_id}/preferences"
-REMEMBERED_PICKS = "/showrunner/actors/{actor_id}/picks"
+#
+# These MUST match the `namespaceTemplates` that `agentcore add memory` wrote
+# into the deploy project's manifest (../showrunnerAgentcore/agentcore/
+# agentcore.json) — the CLI has no flag to override them, and if they drift,
+# recall silently returns nothing. The manifest spells the placeholder
+# `{actorId}`; only the substituted path has to match.
+GENRE_PREFERENCES = "/users/{actor_id}/preferences"
+REMEMBERED_PICKS = "/users/{actor_id}/facts"
 
-# Namespace -> the strategy that populates it. Mirrors what `agentcore add
-# memory` should provision for this project.
+# Namespace -> the strategy that populates it, mirroring the manifest.
 NAMESPACE_STRATEGIES: dict[str, StrategyType] = {
     GENRE_PREFERENCES: StrategyType.USER_PREFERENCE,
     REMEMBERED_PICKS: StrategyType.SEMANTIC,

@@ -53,8 +53,9 @@ def test_namespaces_are_scoped_per_actor():
     prefs_b = memory_config.namespace_for(memory_config.GENRE_PREFERENCES, "user-b")
     picks_a = memory_config.namespace_for(memory_config.REMEMBERED_PICKS, "user-a")
 
-    assert prefs_a == "/showrunner/actors/user-a/preferences"
-    assert picks_a == "/showrunner/actors/user-a/picks"
+    # Paths must match the manifest's namespaceTemplates (see memory_config).
+    assert prefs_a == "/users/user-a/preferences"
+    assert picks_a == "/users/user-a/facts"
     assert prefs_a != prefs_b  # one user can never read another's records
 
 
@@ -123,8 +124,8 @@ def test_recall_builds_context_from_both_tiers():
     assert "earlier question" in block
     assert "likes sci-fi" in block
     assert manager.searched_namespaces == [
-        "/showrunner/actors/u-1/preferences",
-        "/showrunner/actors/u-1/picks",
+        "/users/u-1/preferences",
+        "/users/u-1/facts",
     ]
 
 

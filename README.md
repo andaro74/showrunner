@@ -63,8 +63,11 @@ The Strands agent uses AgentCore Memory in two tiers ([`agents/strands/memory_co
 
 - **Short-term** — the active session's turns, keyed by `(actor_id, session_id)` and replayed into the next turn.
 - **Long-term** — durable records under two named namespaces, both scoped by actor:
-  - `/showrunner/actors/{actor_id}/preferences` — genre preferences (user-preference strategy)
-  - `/showrunner/actors/{actor_id}/picks` — what's already been suggested (semantic strategy)
+  - `/users/{actor_id}/preferences` — genre preferences (user-preference strategy)
+  - `/users/{actor_id}/facts` — what's already been suggested (semantic strategy)
+
+  These paths mirror the `namespaceTemplates` that `agentcore add memory` provisions; if code
+  and manifest drift apart, recall silently returns nothing.
 
 **`{actor_id}` is the load-bearing part.** It comes from the `sub` claim of Identity's inbound
 Cognito JWT. Without that, "who is this user?" would be a value the *caller* supplies — so anyone

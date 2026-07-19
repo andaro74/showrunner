@@ -15,11 +15,21 @@ agentcore deploy              # deploy to AgentCore runtime (CDK)
 
 Run tests after every change to `mcp_servers/` or `agents/`. A change isn't done until its test is green.
 
-`agentcore` is a separate Node CLI (not the `bedrock-agentcore` Python SDK). Local dev
-and the tests don't need it — `BedrockAgentCoreApp` runs standalone. `dev`/`deploy` read an
-AgentCore project config; create it once with `agentcore import` (brings this existing repo
-in — use `create` only for a brand-new project). Add primitives with `agentcore add <memory|
-evaluator|online-eval|gateway|…>` (there is no `add identity`).
+`agentcore` is a separate Node CLI (not the `bedrock-agentcore` Python SDK). Local dev and the
+tests don't need it — `BedrockAgentCoreApp` runs standalone, and the MCP servers run over stdio.
+
+Every `agentcore` command except `create` needs a project manifest (`agentcore/agentcore.json`);
+without one you get *"No agentcore project found."* `create` mints it — but it scaffolds a **new
+child directory** with its own `git init`, so it is NOT run inside this repo. The deploy project
+lives beside it at `../showrunnerAgentcore/`; run `agentcore add …` / `deploy` from there.
+(`import` does not bootstrap a repo — it adopts resources that already exist in AWS.)
+
+Add primitives with `agentcore add <memory|evaluator|online-eval|gateway|…>` — there is no
+`add identity`; inbound Cognito JWT is the gateway's `CUSTOM_JWT` authorizer.
+
+**Namespaces must match:** `add memory` writes default `namespaceTemplates` into the manifest.
+Keep `agents/strands/memory_config.py` pointed at those exact paths or recall silently returns
+nothing.
 
 ## Architecture — three layers (see PROJECT.md for detail)
 
