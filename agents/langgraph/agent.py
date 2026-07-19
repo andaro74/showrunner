@@ -28,7 +28,7 @@ TVMAZE_URL_ENV = "TVMAZE_MCP_URL"
 PLACES_URL_ENV = "PLACES_MCP_URL"
 BEARER_TOKEN_ENV = "MCP_BEARER_TOKEN"
 
-DEFAULT_MODEL_ID = "us.anthropic.claude-sonnet-5-20250929-v1:0"
+DEFAULT_MODEL_ID = "us.anthropic.claude-sonnet-5"
 DEFAULT_REGION = "us-west-2"
 
 

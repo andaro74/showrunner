@@ -67,7 +67,7 @@
       "level": "SESSION",
       "config": {
         "llmAsAJudge": {
-          "model": "us.anthropic.claude-sonnet-4-5-20250514-v1:0",
+          "model": "us.anthropic.claude-sonnet-5",
           "instructions": "Evaluate whether the agent fulfilled the user's request. Context: {context}",
           "ratingScale": {
             "numerical": [
