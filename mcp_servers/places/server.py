@@ -10,6 +10,7 @@ from __future__ import annotations
 from mcp.server.fastmcp import FastMCP
 
 from mcp_servers.places.nominatim_client import GeoPoint, NominatimClient
+from mcp_servers.runtime import run_server
 from mcp_servers.places.osrm_client import Coord, OSRMClient, Route
 from mcp_servers.places.overpass_client import AMENITY_ALIASES, OverpassClient, Place
 
@@ -64,4 +65,4 @@ def travel_time(origin: str, destination: str) -> Route | None:
 
 
 if __name__ == "__main__":
-    mcp.run()
+    run_server(mcp)

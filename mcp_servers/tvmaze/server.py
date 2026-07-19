@@ -8,6 +8,7 @@ from __future__ import annotations
 
 from mcp.server.fastmcp import FastMCP
 
+from mcp_servers.runtime import run_server
 from mcp_servers.tvmaze.tvmaze_client import (
     CastMember,
     Episode,
@@ -45,4 +46,4 @@ def get_cast(show: str) -> list[CastMember]:
 
 
 if __name__ == "__main__":
-    mcp.run()
+    run_server(mcp)

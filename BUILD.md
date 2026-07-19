@@ -229,6 +229,37 @@ This is why the rule is "Identity before Gateway": the OAuth provider must exist
 gateway's `CUSTOM_JWT` authorizer can validate the `sub` claim that scopes memory per user.
 (`agentcore add credential` is for *outbound* credentials the agent uses, not inbound identity.)
 
+### Running the MCP servers as AgentCore Runtimes
+
+By default the agent spawns each MCP server as a **stdio subprocess** — simple, private, no
+auth, and what every test uses. But stdio means there is no Gateway in the path, so **Identity
+and the Cedar policies never apply to tool calls**. To put them behind the Gateway, each server
+runs as its own AgentCore Runtime speaking HTTP:
+
+```bash
+agentcore add agent --name TvmazeMcp --type byo --language Python --protocol MCP \
+  --code-location . --entrypoint mcp_servers/serve_tvmaze.py
+agentcore add agent --name PlacesMcp --type byo --language Python --protocol MCP \
+  --code-location . --entrypoint mcp_servers/serve_places.py
+```
+
+Set `MCP_TRANSPORT=streamable-http` on those runtimes, then point the agent at them with
+`TVMAZE_MCP_URL` / `PLACES_MCP_URL` (per-server, so you can migrate one at a time).
+
+Three things that bite here:
+
+- **AgentCore runs an entry *file*, not a module.** `python mcp_servers/tvmaze/server.py` fails
+  with `ModuleNotFoundError: No module named 'mcp_servers'`, because executing a file puts *its*
+  directory on `sys.path` instead of the repo root. That's why `serve_tvmaze.py` /
+  `serve_places.py` exist — they fix `sys.path` and then start the server.
+- **Bind address.** FastMCP defaults to `127.0.0.1:8000`, which is unreachable from outside a
+  container. `mcp_servers/runtime.py` serves on **8080** (matching `BedrockAgentCoreApp`) and
+  binds `0.0.0.0` when it detects a container — the same probe the AgentCore SDK uses.
+- **The response cache stops working.** `mcp_servers/places/cache.py` is *in-process*. One
+  subprocess meant one cache; N runtime instances means N caches, so the rate-limited
+  Nominatim/Overpass endpoints get hit ~N× harder (hard rule #5). A shared cache
+  (DynamoDB/ElastiCache) is the real fix before this scales.
+
 ### Authorization: Cedar policies
 
 Identity says *who* is calling; a **policy engine** says *what they may do*. Cedar is

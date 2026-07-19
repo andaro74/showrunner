@@ -40,6 +40,11 @@ nothing.
 ## Architecture — three layers (see PROJECT.md for detail)
 
 **Layer 1 · MCP servers (keyless, framework-agnostic).** FastMCP servers under `mcp_servers/`.
+Two transports, one codebase (`mcp_servers/runtime.py`): **stdio** by default — the agent spawns
+them as private subprocesses, used by local dev and every test — or **streamable-http**
+(`MCP_TRANSPORT`), where each server runs as its own AgentCore Runtime behind the Gateway. Only
+the HTTP path gets Identity and the Cedar policies, since those apply at the Gateway.
+Deploy uses the standalone entry files (`serve_*.py`); AgentCore runs an entry *file*, not a module.
 - `tvmaze` — TV/show data over `api.tvmaze.com`. Tools: `search_shows`, `get_schedule`, `get_episodes`, `get_cast`.
 - `places` — OpenStreetMap data. Tools: `geocode` (Nominatim), `find_nearby` (Overpass), `travel_time` (OSRM).
 

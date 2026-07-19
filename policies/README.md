@@ -30,9 +30,11 @@ Policies validate against a Cedar schema that the policy engine generates from t
 first, and you need the real ARN.
 
 ```
-1. agentcore add gateway --authorizer-type CUSTOM_JWT \
+1. agentcore add gateway --protocol-type None --authorizer-type CUSTOM_JWT \
      --discovery-url <cognito discovery url> --allowed-audience <app client id>
-2. agentcore add gateway-target ...        # tvmaze + places targets
+2. agentcore add gateway-target --type http-runtime --runtime <McpRuntime> ...
+   # NOTE: http-runtime targets require the gateway's protocolType to be "None";
+   # the CLI rejects them on an "MCP" gateway.
 3. agentcore deploy                        # gateway now has an ARN
 4. sed -i "s|<GATEWAY_ARN>|$REAL_ARN|g" policies/*.cedar
 5. agentcore add policy-engine --name ShowRunnerPolicies \
@@ -55,8 +57,9 @@ hatch while the tool schema is still moving.
 
 ## Unverified — confirm before relying on it
 
-- **Target names.** `TvmazeTarget` / `PlacesTarget` are our intended names; the
-  action strings must match the gateway targets actually created in step 2.
+- ~~**Target names.**~~ **Confirmed.** `TvmazeTarget` and `PlacesTarget` now exist in
+  the manifest as `httpRuntime` targets (→ the `TvmazeMcp` / `PlacesMcp` runtimes),
+  and match the action prefixes used here.
 - **One statement per policy?** `Policy.statement` is a single string while these
   files hold several. Whether `--source` splits a multi-statement file or expects
   one statement per policy is untested — you may need one `add policy` per rule.

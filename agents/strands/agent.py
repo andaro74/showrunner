@@ -17,6 +17,7 @@ from bedrock_agentcore.memory.constants import ConversationalMessage, MessageRol
 from bedrock_agentcore.runtime import BedrockAgentCoreApp
 from mcp import StdioServerParameters
 from mcp.client.stdio import stdio_client
+from mcp.client.streamable_http import streamablehttp_client
 from strands import Agent
 from strands.tools.mcp import MCPClient
 
@@ -27,19 +28,41 @@ from agents.strands.prompts import SYSTEM_PROMPT
 TVMAZE_SERVER = "mcp_servers.tvmaze.server"
 PLACES_SERVER = "mcp_servers.places.server"
 
+# When these are set, the servers are reached over HTTP (each its own AgentCore
+# Runtime, behind the Gateway) instead of being spawned as local subprocesses.
+TVMAZE_URL_ENV = "TVMAZE_MCP_URL"
+PLACES_URL_ENV = "PLACES_MCP_URL"
+# Bearer token presented to the Gateway (its CUSTOM_JWT authorizer validates it).
+BEARER_TOKEN_ENV = "MCP_BEARER_TOKEN"
+
 app = BedrockAgentCoreApp()
 
 
-def mcp_client_for(module: str) -> MCPClient:
-    """Build an MCPClient that spawns `python -m module` and speaks stdio to it."""
+def _auth_headers() -> dict[str, str] | None:
+    token = os.environ.get(BEARER_TOKEN_ENV)
+    return {"Authorization": f"Bearer {token}"} if token else None
+
+
+def mcp_client_for(module: str, url: str | None = None) -> MCPClient:
+    """MCPClient for one server: HTTP when `url` is given, else a stdio subprocess."""
+    if url:
+        headers = _auth_headers()
+        return MCPClient(lambda: streamablehttp_client(url, headers=headers))
     return MCPClient(
         lambda: stdio_client(StdioServerParameters(command=sys.executable, args=["-m", module]))
     )
 
 
 def build_mcp_clients() -> list[MCPClient]:
-    """One MCPClient per backing server (tvmaze, places)."""
-    return [mcp_client_for(TVMAZE_SERVER), mcp_client_for(PLACES_SERVER)]
+    """One MCPClient per backing server (tvmaze, places).
+
+    Transport is per-server: set TVMAZE_MCP_URL / PLACES_MCP_URL to reach them
+    over HTTP through the Gateway; unset means spawn them locally on stdio.
+    """
+    return [
+        mcp_client_for(TVMAZE_SERVER, os.environ.get(TVMAZE_URL_ENV)),
+        mcp_client_for(PLACES_SERVER, os.environ.get(PLACES_URL_ENV)),
+    ]
 
 
 def build_agent(tools: list) -> Agent:

@@ -9,6 +9,7 @@ The project is deliberately two things at once:
 ## Architecture — three layers
 
 **Layer 1 · MCP servers (keyless, framework-agnostic)**
+- Two deployment shapes from one codebase: **stdio** (default — spawned as a subprocess by the agent; what local dev and the tests use) or **streamable-http**, where each server is its own AgentCore Runtime (`--protocol MCP`) reached through the Gateway. Identity and the Cedar policies only bind on the HTTP path, because they are enforced at the Gateway.
 - `tvmaze` — TV/show data over `https://api.tvmaze.com` (no key). Tools: `search_shows`, `get_schedule`, `get_episodes`, `get_cast`.
 - `places` — location data over OpenStreetMap (no key). Tools: `geocode` (Nominatim), `find_nearby` (Overpass — cinemas + restaurants), `travel_time` (OSRM).
 

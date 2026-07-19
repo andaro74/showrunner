@@ -7,7 +7,32 @@
     "agentcore:created-by": "agentcore-cli",
     "agentcore:project-name": "showrunnerAgentcore"
   },
-  "runtimes": [],
+  "runtimes": [
+    {
+      "name": "TvmazeMcp",
+      "build": "CodeZip",
+      "entrypoint": "mcp_servers/serve_tvmaze.py",
+      "codeLocation": "./",
+      "runtimeVersion": "PYTHON_3_14",
+      "networkMode": "PUBLIC",
+      "instrumentation": {
+        "enableOtel": false
+      },
+      "protocol": "MCP"
+    },
+    {
+      "name": "PlacesMcp",
+      "build": "CodeZip",
+      "entrypoint": "mcp_servers/serve_places.py",
+      "codeLocation": "./",
+      "runtimeVersion": "PYTHON_3_14",
+      "networkMode": "PUBLIC",
+      "instrumentation": {
+        "enableOtel": false
+      },
+      "protocol": "MCP"
+    }
+  ],
   "memories": [
     {
       "name": "ShowRunnerMemory",
@@ -83,7 +108,22 @@
       "name": "showrunner-gateway",
       "protocolType": "None",
       "description": "Gateway for showrunner-gateway",
-      "targets": [],
+      "targets": [
+        {
+          "name": "TvmazeTarget",
+          "targetType": "httpRuntime",
+          "httpRuntime": {
+            "runtime": "TvmazeMcp"
+          }
+        },
+        {
+          "name": "PlacesTarget",
+          "targetType": "httpRuntime",
+          "httpRuntime": {
+            "runtime": "PlacesMcp"
+          }
+        }
+      ],
       "authorizerType": "CUSTOM_JWT",
       "authorizerConfiguration": {
         "customJwtAuthorizer": {
