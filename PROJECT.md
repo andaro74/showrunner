@@ -19,10 +19,16 @@ The project is deliberately two things at once:
 **Layer 3 · Amazon Bedrock AgentCore (production concerns)**
 - **Runtime** — serverless host for each agent entrypoint.
 - **Memory** — short-term (session) + long-term (genre preferences across sessions).
-- **Identity** — inbound Cognito JWT; scopes memory per real user (anti-impersonation via the `sub` claim).
+- **Identity** — inbound Cognito JWT; scopes memory per real user (anti-impersonation via the `sub` claim). Not a standalone resource: it's the `CUSTOM_JWT` authorizer on a gateway, pointed at Cognito's OIDC discovery URL.
 - **Gateway** — managed tool routing/auth; production alternative to self-hosting the MCP servers.
 - **Evaluation** — LLM-as-a-judge; offline in CI + optional online on traces.
 - **Observability** — built-in OTEL traces → CloudWatch.
+
+*How Layer 3 is configured:* AgentCore uses a **flat resource model** — memories, gateways,
+credentials and evaluators are top-level arrays in one declarative manifest, `agentcore/agentcore.json`,
+not per-primitive directories. `agentcore add <resource>` appends to that manifest; `agentcore deploy`
+turns it into AWS infrastructure via the CDK project in `agentcore/cdk/`. The manifest is committed;
+`agentcore/cdk/node_modules/` is not.
 
 ## The user flow (one turn)
 
@@ -36,7 +42,7 @@ Identity validates the caller → Memory loads their history → the agent reaso
 4. `strands` agent
 5. `langgraph` variant
 6. `add-mcp-tool` skill + hooks (ruff/pytest, secret-blocking)
-7. AgentCore memory → identity → evaluator (one commit each)
+7. AgentCore: `agentcore/` manifest → memory → gateway (with the `CUSTOM_JWT` authorizer that supplies identity) → evaluator (one commit each)
 8. CI + docs, then push
 
 ## Non-goals / constraints

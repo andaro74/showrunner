@@ -104,7 +104,8 @@ showrunner/
 ├── PROJECT.md · CLAUDE.md · BUILD.md    # spec, agent memory, build guide
 ├── mcp_servers/tvmaze · places          # keyless, framework-agnostic
 ├── agents/strands · langgraph           # two frameworks, same servers
-├── gateway/ · identity/ · evals/        # AgentCore config, added incrementally
+├── agentcore/                           # AgentCore manifest + CDK (flat resource model)
+├── evals/                               # our LLM-as-judge harness
 ├── tests/                               # a test per tool
 ├── .claude/                             # skills, subagents, hooks (how it's built)
 └── .github/workflows/ci.yml             # pytest + ruff + headless review + evals

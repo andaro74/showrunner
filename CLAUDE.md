@@ -47,7 +47,7 @@ nothing.
 - `strands` — primary agent; Strands `MCPClient` wrapped in `BedrockAgentCoreApp`.
 - `langgraph` — variant; loads the identical servers via `langchain-mcp-adapters`. Proves MCP portability: one server, two frameworks, no per-framework rewrites.
 
-**Layer 3 · Amazon Bedrock AgentCore (production concerns).** Runtime, Memory (short-term session + long-term genre prefs), Identity (Cognito JWT), Gateway (managed tool routing), Evaluation, Observability. Added incrementally under `gateway/`, `identity/`, `evals/`.
+**Layer 3 · Amazon Bedrock AgentCore (production concerns).** Runtime, Memory (short-term session + long-term genre prefs), Identity (Cognito JWT via a gateway's `CUSTOM_JWT` authorizer), Gateway (managed tool routing), Evaluation, Observability. Configured as a **flat resource model** — top-level arrays in `agentcore/agentcore.json`, deployed by `agentcore/cdk/`. There are no per-primitive directories; `evals/` holds our own eval harness.
 
 ## Hard rules
 

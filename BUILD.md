@@ -89,7 +89,25 @@ Then trim it — a bloated memory file gets half-ignored. Paste:
 
 Press **Shift+Tab** to enter plan mode (read-only — Claude can explore and propose but not edit). Paste:
 
-> In plan mode: propose the full directory scaffold and the build order for this project. I want two MCP servers under `mcp_servers/`, two agents under `agents/`, plus `gateway/`, `identity/`, `skills/`, `evals/`, and `tests/`. Show the tree and the order you'd implement modules in, smallest-first, each independently testable. Don't write files yet.
+> In plan mode: propose the full directory scaffold and the build order for this project. I want two MCP servers under `mcp_servers/`, two agents under `agents/`, plus `evals/` and `tests/`. Show the tree and the order you'd implement modules in, smallest-first, each independently testable. Don't write files yet.
+
+**Why there's no `gateway/` or `identity/` directory.** It's tempting to give each AgentCore
+primitive its own folder, but that's not how AgentCore models them. It uses a **flat resource
+model**: agents, memories, credentials, gateways, evaluators and policies are independent
+top-level *arrays* in a single manifest, `agentcore/agentcore.json`:
+
+```jsonc
+{ "runtimes": [], "memories": [], "agentCoreGateways": [], "credentials": [], "evaluators": [] }
+```
+
+`agentcore add gateway` appends to that manifest — it does not create a directory. So Layer 3
+config lives in `agentcore/` (added in Phase 11), not in per-primitive folders. Identity is not
+even its own array: it's the `CUSTOM_JWT` authorizer on a gateway. `evals/` *is* a real directory,
+because it holds our own eval harness (`cases.yaml`, `run_evals.py`) — distinct from the
+AgentCore `evaluators` resource in the manifest.
+
+Skills are also not top-level: the invocable one lives at `.claude/skills/add-mcp-tool/`, and each
+server documents its tools in its own `SKILL.md`.
 
 Read the plan. If it's right, approve and let it scaffold empty files. Commit:
 
@@ -246,3 +264,4 @@ That table is a good closing slide for a carousel, too.
 | `.env.example` | you / Claude Code | The only genuinely authored file; placeholders only |
 | `.gitignore` | GitHub template or `uv init` | Must ignore `.venv/` and `.env` |
 | `CLAUDE.md` | `/init`, then pruned | Phase 3 |
+| `agentcore/` | `agentcore create` | Manifest + CDK project. `create` scaffolds a **new child dir** with its own `git init`, so generate it elsewhere and move `agentcore/` in. Commit it; `cdk/node_modules/` is gitignored. |
