@@ -40,3 +40,14 @@ Run tests after every change to `mcp_servers/` or `agents/`. A change isn't done
 - Tools return typed, JSON-serializable results — no raw upstream payloads.
 - Use plan mode before non-trivial edits; build smallest-first, one module per commit.
 - For noisy research (e.g. Overpass QL), use a subagent so it doesn't flood context.
+
+## Hooks
+
+Configured in `.claude/settings.json`, backed by scripts in `.claude/hooks/`:
+
+- **PostToolUse** (`check_on_save.py`) — after a Write/Edit under `mcp_servers/` or
+  `agents/`, runs `ruff check .` and `uv run pytest -q`; failures are reported back.
+- **PreToolUse** (`block_secrets.py`) — blocks a `git commit` whose staged changes
+  contain a `.env` file, an API-key-shaped string, or a real value from local `.env`
+  (enforces hard rule #3). Only guards commits Claude runs; install the same scan as
+  a native git pre-commit hook to cover manual commits too.
