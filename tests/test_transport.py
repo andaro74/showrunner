@@ -88,12 +88,11 @@ def test_host_env_overrides(monkeypatch):
 
 
 def test_langgraph_uses_stdio_without_urls(monkeypatch):
-    monkeypatch.delenv(lg_agent.TVMAZE_URL_ENV, raising=False)
     monkeypatch.delenv(lg_agent.PLACES_URL_ENV, raising=False)
 
-    conn = lg_agent.connection_for(lg_agent.TVMAZE_SERVER, None)
+    conn = lg_agent.connection_for(lg_agent.PLACES_SERVER, None)
     assert conn["transport"] == "stdio"
-    assert conn["args"] == ["-m", lg_agent.TVMAZE_SERVER]
+    assert conn["args"] == ["-m", lg_agent.PLACES_SERVER]
 
 
 def test_langgraph_uses_http_with_url(monkeypatch):
@@ -111,10 +110,11 @@ def test_langgraph_sends_bearer_token(monkeypatch):
     assert conn["headers"] == {"Authorization": "Bearer tok-123"}
 
 
-def test_strands_builds_a_client_per_server(monkeypatch):
+def test_strands_builds_one_client_for_its_server(monkeypatch):
+    """The show specialist owns exactly one server — a second client would mean
+    the specialist split leaked."""
     monkeypatch.delenv(strands_agent.TVMAZE_URL_ENV, raising=False)
-    monkeypatch.delenv(strands_agent.PLACES_URL_ENV, raising=False)
-    assert len(strands_agent.build_mcp_clients()) == 2
+    assert len(strands_agent.build_mcp_clients()) == 1
 
 
 def test_strands_auth_headers(monkeypatch):

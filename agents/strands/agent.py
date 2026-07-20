@@ -1,9 +1,11 @@
-"""Strands movie-night agent (primary).
+"""Strands show specialist.
 
-Connects to BOTH MCP servers (tvmaze + places) over stdio via Strands `MCPClient`,
-and is wrapped in a `BedrockAgentCoreApp` for the runtime entrypoint. The MCP
-servers are launched as subprocesses using the current interpreter, so the same
-virtualenv (and its deps) is reused.
+Owns exactly one MCP server: `tvmaze` (search_shows, get_schedule, get_episodes,
+get_cast), connected over stdio via Strands `MCPClient`. The LangGraph specialist
+owns `places` the same way — together they partition the seven MCP tools with no
+overlap, and the orchestrator in `agents/orchestrator/` composes them. The server
+is launched as a subprocess using the current interpreter, so the same virtualenv
+(and its deps) is reused.
 """
 
 from __future__ import annotations
@@ -24,14 +26,12 @@ from strands.tools.mcp import MCPClient
 from agents.strands import memory_config
 from agents.strands.prompts import SYSTEM_PROMPT
 
-# MCP server entrypoints, launched over stdio as `python -m <module>`.
+# The ONE MCP server this specialist owns, launched over stdio as `python -m <module>`.
 TVMAZE_SERVER = "mcp_servers.tvmaze.server"
-PLACES_SERVER = "mcp_servers.places.server"
 
-# When these are set, the servers are reached over HTTP (each its own AgentCore
-# Runtime, behind the Gateway) instead of being spawned as local subprocesses.
+# When set, the server is reached over HTTP (its own AgentCore Runtime, behind
+# the Gateway) instead of being spawned as a local subprocess.
 TVMAZE_URL_ENV = "TVMAZE_MCP_URL"
-PLACES_URL_ENV = "PLACES_MCP_URL"
 # Bearer token presented to the Gateway (its CUSTOM_JWT authorizer validates it).
 BEARER_TOKEN_ENV = "MCP_BEARER_TOKEN"
 
@@ -54,15 +54,12 @@ def mcp_client_for(module: str, url: str | None = None) -> MCPClient:
 
 
 def build_mcp_clients() -> list[MCPClient]:
-    """One MCPClient per backing server (tvmaze, places).
+    """The specialist's MCP clients — exactly one, for the tvmaze server.
 
-    Transport is per-server: set TVMAZE_MCP_URL / PLACES_MCP_URL to reach them
-    over HTTP through the Gateway; unset means spawn them locally on stdio.
+    Set TVMAZE_MCP_URL to reach it over HTTP through the Gateway; unset means
+    spawn it locally on stdio.
     """
-    return [
-        mcp_client_for(TVMAZE_SERVER, os.environ.get(TVMAZE_URL_ENV)),
-        mcp_client_for(PLACES_SERVER, os.environ.get(PLACES_URL_ENV)),
-    ]
+    return [mcp_client_for(TVMAZE_SERVER, os.environ.get(TVMAZE_URL_ENV))]
 
 
 def build_agent(tools: list) -> Agent:
@@ -192,10 +189,10 @@ def invoke(payload: dict, context: object | None = None) -> dict:
     remembered = recall(manager, actor_id, session_id, prompt) if manager else ""
     turn_input = f"{remembered}\n\n{prompt}".strip() if remembered else prompt
 
-    tvmaze, places = build_mcp_clients()
-    # Clients must stay connected while the agent runs — tool calls proxy over stdio.
-    with tvmaze, places:
-        tools = tvmaze.list_tools_sync() + places.list_tools_sync()
+    (tvmaze,) = build_mcp_clients()
+    # The client must stay connected while the agent runs — tool calls proxy over stdio.
+    with tvmaze:
+        tools = tvmaze.list_tools_sync()
         agent = build_agent(tools)
         result = agent(turn_input)
 

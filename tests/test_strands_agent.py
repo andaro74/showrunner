@@ -1,8 +1,9 @@
-"""Smoke test for the Strands agent — build-order step 6.
+"""Smoke test for the Strands show specialist.
 
-Spawns both MCP servers over stdio, builds the agent, and asserts it registered
-the tools from BOTH servers (4 tvmaze + 3 places). Agent construction needs no
-AWS credentials; the model is only contacted on invocation, which we don't do.
+Spawns the tvmaze MCP server over stdio, builds the agent, and asserts it
+registered exactly the tvmaze tools — and none of the places tools, which belong
+to the LangGraph specialist. Agent construction needs no AWS credentials; the
+model is only contacted on invocation, which we don't do.
 """
 
 import pytest
@@ -14,13 +15,12 @@ PLACES_TOOLS = {"geocode", "find_nearby", "travel_time"}
 
 
 @pytest.mark.integration
-def test_agent_registers_tools_from_both_servers():
-    tvmaze, places = build_mcp_clients()
-    with tvmaze, places:
-        tools = tvmaze.list_tools_sync() + places.list_tools_sync()
+def test_specialist_registers_exactly_the_tvmaze_tools():
+    (tvmaze,) = build_mcp_clients()
+    with tvmaze:
+        tools = tvmaze.list_tools_sync()
         agent = build_agent(tools)
         registered = set(agent.tool_names)
 
-    assert TVMAZE_TOOLS <= registered, f"missing tvmaze tools: {TVMAZE_TOOLS - registered}"
-    assert PLACES_TOOLS <= registered, f"missing places tools: {PLACES_TOOLS - registered}"
-    assert registered == TVMAZE_TOOLS | PLACES_TOOLS
+    assert registered == TVMAZE_TOOLS
+    assert not (registered & PLACES_TOOLS), "places tools leaked into the show specialist"

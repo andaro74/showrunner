@@ -1,10 +1,10 @@
-"""LangGraph movie-night agent (variant).
+"""LangGraph places specialist.
 
-Loads the SAME two MCP servers (tvmaze + places) as the Strands agent, but via
-`langchain-mcp-adapters` instead of Strands' `MCPClient`. This is the portability
-demo: one pair of servers, two frameworks, and no per-framework tool rewrites —
-`MultiServerMCPClient.get_tools()` adapts the identical MCP tools into LangChain
-tools that a LangGraph ReAct agent consumes directly.
+Owns exactly one MCP server: `places` (geocode, find_nearby, travel_time), loaded
+via `langchain-mcp-adapters`. The Strands specialist owns `tvmaze` the same way —
+together they partition the seven MCP tools with no overlap, and the orchestrator
+in `agents/orchestrator/` composes them. One protocol, two frameworks, and each
+server still moves between frameworks without a rewrite.
 """
 
 from __future__ import annotations
@@ -19,12 +19,10 @@ from langgraph.prebuilt import create_react_agent
 
 from agents.langgraph.prompts import SYSTEM_PROMPT
 
-# Same MCP server entrypoints the Strands agent uses, launched over stdio.
-TVMAZE_SERVER = "mcp_servers.tvmaze.server"
+# The ONE MCP server this specialist owns, launched over stdio by default.
 PLACES_SERVER = "mcp_servers.places.server"
 
-# Same env contract as the Strands agent — see agents/strands/agent.py.
-TVMAZE_URL_ENV = "TVMAZE_MCP_URL"
+# Same env contract as the Strands specialist — see agents/strands/agent.py.
 PLACES_URL_ENV = "PLACES_MCP_URL"
 BEARER_TOKEN_ENV = "MCP_BEARER_TOKEN"
 
@@ -50,17 +48,14 @@ def connection_for(module: str, url: str | None) -> StdioConnection | Streamable
 
 
 def build_mcp_client() -> MultiServerMCPClient:
-    """MultiServerMCPClient wired to both backing servers, on either transport."""
+    """MultiServerMCPClient wired to the places server, on either transport."""
     return MultiServerMCPClient(
-        {
-            "tvmaze": connection_for(TVMAZE_SERVER, os.environ.get(TVMAZE_URL_ENV)),
-            "places": connection_for(PLACES_SERVER, os.environ.get(PLACES_URL_ENV)),
-        }
+        {"places": connection_for(PLACES_SERVER, os.environ.get(PLACES_URL_ENV))}
     )
 
 
 async def load_tools() -> list:
-    """Adapt the MCP tools from both servers into LangChain tools."""
+    """Adapt the places MCP tools into LangChain tools."""
     return await build_mcp_client().get_tools()
 
 
@@ -73,12 +68,12 @@ def build_model() -> ChatBedrockConverse:
 
 
 async def build_agent():
-    """Assemble the LangGraph ReAct agent over the shared MCP tools."""
+    """Assemble the LangGraph ReAct agent over the places tools."""
     tools = await load_tools()
     return create_react_agent(build_model(), tools, prompt=SYSTEM_PROMPT)
 
 
 async def invoke(prompt: str) -> dict:
-    """Run the agent on a single user prompt and return its final state."""
+    """Run the specialist on a single prompt and return its final state."""
     agent = await build_agent()
     return await agent.ainvoke({"messages": [{"role": "user", "content": prompt}]})
