@@ -76,7 +76,11 @@ def _episode(ep: dict[str, Any]) -> Episode:
 
 
 def _scheduled_episode(ep: dict[str, Any]) -> ScheduledEpisode:
-    show = ep.get("_embedded", {}).get("show", {})
+    # /schedule nests the show at TOP LEVEL (`ep["show"]`); the `_embedded.show`
+    # shape belongs to other endpoints. Reading only `_embedded` here shipped a
+    # schedule where every entry had an empty show name — invisible to mocked
+    # tests, caught when a live agent kept (correctly) refusing to name shows.
+    show = ep.get("show") or ep.get("_embedded", {}).get("show") or {}
     return ScheduledEpisode(
         show=show.get("name", ""),
         network=_network_name(show),
