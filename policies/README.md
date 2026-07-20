@@ -14,6 +14,18 @@ the gateway executes only the tool actions approved here.
 
 Evaluation is **default-deny**, and **`forbid` overrides `permit`**.
 
+## Scope limit: these policies bind at the Gateway only
+
+A tool call that does not go through the gateway is **not evaluated by Cedar at all** — not
+denied, just never seen. Two paths skip it:
+
+- **stdio** (local dev, every test) — the agent spawns the servers as subprocesses. No gateway,
+  no policies. Expected, and why the tests don't exercise authorization.
+- **Direct runtime invoke** — if `TvmazeMcp` / `PlacesMcp` accept `AWS_IAM`, anyone with
+  `InvokeAgentRuntime` reaches the tools around the gateway. That one is a real hole, so both
+  runtimes also require `CUSTOM_JWT` against the same Cognito pool (`agentcore.json`). Keep it
+  that way: dropping the runtime authorizer silently disables every policy in this directory.
+
 ## Files
 
 - **`showrunner_tools.cedar`** — the allow-list. All seven MCP tools, permitted
@@ -31,7 +43,9 @@ first, and you need the real ARN.
 
 ```
 1. agentcore add gateway --protocol-type None --authorizer-type CUSTOM_JWT \
-     --discovery-url <cognito discovery url> --allowed-audience <app client id>
+     --discovery-url <cognito discovery url> --allowed-clients <app client id>
+   # --allowed-clients, NOT --allowed-audience: a Cognito ACCESS token has no `aud`
+   # claim (it carries `client_id`), so --allowed-audience matches ID tokens only.
 2. agentcore add gateway-target --type http-runtime --runtime <McpRuntime> ...
    # NOTE: http-runtime targets require the gateway's protocolType to be "None";
    # the CLI rejects them on an "MCP" gateway.

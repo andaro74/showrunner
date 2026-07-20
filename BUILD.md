@@ -211,7 +211,7 @@ bash scripts/create_cognito.sh us-west-2
 
 That script is the reproducible record of this step. It creates the user pool **and an app
 client** — you need both: the pool ID gives you the discovery URL, and the client ID is the
-`--allowed-audience`. A pool on its own is not enough, and without a client nobody can obtain a
+`--allowed-clients`. A pool on its own is not enough, and without a client nobody can obtain a
 token at all. It's idempotent (re-running reuses existing resources), writes the four
 `COGNITO_*` values plus `AWS_REGION` into `.env`, and never prints the client secret.
 
@@ -222,8 +222,23 @@ agentcore add gateway \
   --name showrunner-gateway \
   --authorizer-type CUSTOM_JWT \
   --discovery-url https://cognito-idp.<region>.amazonaws.com/<user-pool-id>/.well-known/openid-configuration \
-  --allowed-audience <cognito-app-client-id>
+  --allowed-clients <cognito-app-client-id>
 ```
+
+**`--allowed-clients`, not `--allowed-audience`.** These look interchangeable and are not —
+they check *different claims*, and Cognito puts the client ID in a different one per token
+type. Decoding a real token from this pool:
+
+| Token | `token_use` | `aud` | `client_id` |
+|---|---|---|---|
+| access | `access` | **absent** | the client ID |
+| id | `id` | the client ID | **absent** |
+
+`--allowed-audience` checks `aud`, so it matches **only ID tokens**. The agent presents an
+*access* token (`MCP_BEARER_TOKEN`) — the correct credential for authorizing a tool call, since
+an ID token asserts identity to a client rather than authority to a resource. Pair the two and
+every call fails a claim check that reads like a broken credential. `--allowed-clients` checks
+`client_id`, which is what an access token actually carries.
 
 This is why the rule is "Identity before Gateway": the OAuth provider must exist before the
 gateway's `CUSTOM_JWT` authorizer can validate the `sub` claim that scopes memory per user.
@@ -237,16 +252,30 @@ and the Cedar policies never apply to tool calls**. To put them behind the Gatew
 runs as its own AgentCore Runtime speaking HTTP:
 
 ```bash
+DISCOVERY_URL=https://cognito-idp.<region>.amazonaws.com/<user-pool-id>/.well-known/openid-configuration
+
 agentcore add agent --name TvmazeMcp --type byo --language Python --protocol MCP \
-  --code-location . --entrypoint mcp_servers/serve_tvmaze.py
+  --code-location . --entrypoint mcp_servers/serve_tvmaze.py \
+  --authorizer-type CUSTOM_JWT --discovery-url "$DISCOVERY_URL" \
+  --allowed-clients "$COGNITO_CLIENT_ID"
 agentcore add agent --name PlacesMcp --type byo --language Python --protocol MCP \
-  --code-location . --entrypoint mcp_servers/serve_places.py
+  --code-location . --entrypoint mcp_servers/serve_places.py \
+  --authorizer-type CUSTOM_JWT --discovery-url "$DISCOVERY_URL" \
+  --allowed-clients "$COGNITO_CLIENT_ID"
 ```
 
 Set `MCP_TRANSPORT=streamable-http` on those runtimes, then point the agent at them with
 `TVMAZE_MCP_URL` / `PLACES_MCP_URL` (per-server, so you can migrate one at a time).
 
-Three things that bite here:
+**Why the runtimes carry their own authorizer.** It looks redundant — the gateway already
+validates the same JWT — but without it the runtimes fall back to `AWS_IAM`, and that opens a
+path around everything Layer 3 is for. **Cedar binds at the gateway only.** So a caller holding
+IAM `InvokeAgentRuntime` on `TvmazeMcp` reaches the tools directly, and the per-tool permits and
+the `find_nearby` radius cap in [`policies/`](policies/) never evaluate. The policies aren't
+wrong; they're simply not on that path. Requiring a JWT at the runtime too means both doors
+need the same key, so bypassing the gateway is not a way to skip authorization.
+
+Three more things that bite here:
 
 - **AgentCore runs an entry *file*, not a module.** `python mcp_servers/tvmaze/server.py` fails
   with `ModuleNotFoundError: No module named 'mcp_servers'`, because executing a file puts *its*

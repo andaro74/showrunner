@@ -18,7 +18,16 @@
       "instrumentation": {
         "enableOtel": false
       },
-      "protocol": "MCP"
+      "protocol": "MCP",
+      "authorizerType": "CUSTOM_JWT",
+      "authorizerConfiguration": {
+        "customJwtAuthorizer": {
+          "discoveryUrl": "https://cognito-idp.us-west-2.amazonaws.com/us-west-2_EXAMPLE01/.well-known/openid-configuration",
+          "allowedClients": [
+            "exampleuserclientid0000001"
+          ]
+        }
+      }
     },
     {
       "name": "PlacesMcp",
@@ -30,7 +39,16 @@
       "instrumentation": {
         "enableOtel": false
       },
-      "protocol": "MCP"
+      "protocol": "MCP",
+      "authorizerType": "CUSTOM_JWT",
+      "authorizerConfiguration": {
+        "customJwtAuthorizer": {
+          "discoveryUrl": "https://cognito-idp.us-west-2.amazonaws.com/us-west-2_EXAMPLE01/.well-known/openid-configuration",
+          "allowedClients": [
+            "exampleuserclientid0000001"
+          ]
+        }
+      }
     }
   ],
   "memories": [
@@ -128,7 +146,7 @@
       "authorizerConfiguration": {
         "customJwtAuthorizer": {
           "discoveryUrl": "https://cognito-idp.us-west-2.amazonaws.com/us-west-2_EXAMPLE01/.well-known/openid-configuration",
-          "allowedAudience": [
+          "allowedClients": [
             "exampleuserclientid0000001"
           ]
         }
