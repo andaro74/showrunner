@@ -57,7 +57,23 @@ def namespace_for(template: str, actor_id: str) -> str:
 
 
 def memory_id() -> str | None:
-    return os.environ.get(MEMORY_ID_ENV) or None
+    """The configured memory id: explicit env first, else the CLI-injected one.
+
+    A deployed runtime does not get AGENTCORE_MEMORY_ID — the AgentCore CLI
+    injects `MEMORY_<NAME>_ID` (observed: MEMORY_SHOWRUNNERMEMORY_ID) for every
+    memory in the manifest. Without this fallback, memory silently disables on
+    deploy: same failure class as the namespace mismatch, invisible until a
+    user notices nothing is remembered.
+    """
+    explicit = os.environ.get(MEMORY_ID_ENV)
+    if explicit:
+        return explicit
+    injected = sorted(
+        value
+        for key, value in os.environ.items()
+        if key.startswith("MEMORY_") and key.endswith("_ID") and value
+    )
+    return injected[0] if injected else None
 
 
 def region() -> str:

@@ -20,6 +20,7 @@ lets the LangGraph specialist's async `invoke` compose without a nested
 from __future__ import annotations
 
 import base64
+import contextvars
 import json
 import os
 
@@ -34,6 +35,16 @@ from agents.strands import agent as show_specialist
 
 app = BedrockAgentCoreApp()
 
+# The caller's bearer token for the CURRENT request, set by the entrypoint and
+# read by the delegates, which forward it to the specialists so the Gateway's
+# Cedar policies evaluate the real user — not a shared service identity. A
+# contextvar (not a global) so concurrent requests can't read each other's
+# token; it propagates into Strands' worker thread and event loop because
+# Python 3.14's ThreadPoolExecutor runs tasks under the submitting context.
+_caller_token: contextvars.ContextVar[str | None] = contextvars.ContextVar(
+    "showrunner_caller_token", default=None
+)
+
 
 # --- specialist delegates (agents-as-tools) --------------------------------
 
@@ -41,13 +52,13 @@ app = BedrockAgentCoreApp()
 def ask_show_expert(question: str) -> str:
     """Ask the TV-show specialist about shows: what's airing tonight, episode
     lists, or who's in the cast. Phrase a complete, standalone question."""
-    return show_specialist.answer(question)
+    return show_specialist.answer(question, bearer_token=_caller_token.get())
 
 
 async def ask_places_expert(question: str) -> str:
     """Ask the places specialist about locations: nearby cinemas, food stops,
     or travel times. Include the user's location in the question."""
-    return await places_specialist.answer(question)
+    return await places_specialist.answer(question, bearer_token=_caller_token.get())
 
 
 def build_agent() -> Agent:
@@ -186,6 +197,10 @@ def invoke(payload: dict, context: object | None = None) -> dict:
     prompt = payload.get("prompt", "")
     actor_id = resolve_actor_id(payload, context)
     session_id = getattr(context, "session_id", None) or payload.get("session_id") or actor_id
+
+    # Make the caller's token available to the delegates for this request.
+    headers = getattr(context, "request_headers", None) or {}
+    _caller_token.set(_bearer_token(headers))
 
     manager = memory_config.build_session_manager()
     remembered = recall(manager, actor_id, session_id, prompt) if manager else ""

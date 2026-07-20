@@ -18,9 +18,12 @@ from langchain_mcp_adapters.sessions import StdioConnection, StreamableHttpConne
 from langgraph.prebuilt import create_react_agent
 
 from agents.langgraph.prompts import SYSTEM_PROMPT
+from agents.mcp_env import bare_tool_name, server_url
 
 # The ONE MCP server this specialist owns, launched over stdio by default.
 PLACES_SERVER = "mcp_servers.places.server"
+# The tools that server exposes — the ownership filter for gateway mode.
+PLACES_TOOLS = frozenset({"geocode", "find_nearby", "travel_time"})
 
 # Same env contract as the Strands specialist — see agents/strands/agent.py.
 PLACES_URL_ENV = "PLACES_MCP_URL"
@@ -35,28 +38,44 @@ def _stdio(module: str) -> StdioConnection:
     return StdioConnection(transport="stdio", command=sys.executable, args=["-m", module])
 
 
-def _http(url: str) -> StreamableHttpConnection:
-    """HTTP connection spec for a server running as its own AgentCore Runtime."""
-    token = os.environ.get(BEARER_TOKEN_ENV)
+def _http(url: str, token: str | None = None) -> StreamableHttpConnection:
+    """HTTP connection spec for the Gateway (or a standalone server runtime)."""
+    token = token or os.environ.get(BEARER_TOKEN_ENV)
     headers = {"Authorization": f"Bearer {token}"} if token else None
     return StreamableHttpConnection(transport="streamable_http", url=url, headers=headers)
 
 
-def connection_for(module: str, url: str | None) -> StdioConnection | StreamableHttpConnection:
+def connection_for(
+    module: str, url: str | None, token: str | None = None
+) -> StdioConnection | StreamableHttpConnection:
     """HTTP when a URL is configured, else spawn the server on stdio."""
-    return _http(url) if url else _stdio(module)
+    return _http(url, token) if url else _stdio(module)
 
 
-def build_mcp_client() -> MultiServerMCPClient:
-    """MultiServerMCPClient wired to the places server, on either transport."""
+def build_mcp_client(token: str | None = None) -> MultiServerMCPClient:
+    """MultiServerMCPClient wired to the places server, on either transport.
+
+    A deployed runtime needs no env config: the CLI-injected gateway URL is
+    picked up automatically (see agents/mcp_env.py).
+    """
     return MultiServerMCPClient(
-        {"places": connection_for(PLACES_SERVER, os.environ.get(PLACES_URL_ENV))}
+        {"places": connection_for(PLACES_SERVER, server_url(PLACES_URL_ENV), token)}
     )
 
 
-async def load_tools() -> list:
-    """Adapt the places MCP tools into LangChain tools."""
-    return await build_mcp_client().get_tools()
+def owned_tools(tools: list) -> list:
+    """Only the tools this specialist owns.
+
+    The Gateway exposes ALL seven tools at one endpoint (prefixed names, e.g.
+    PlacesMcpTarget___geocode). Without this filter, gateway mode would register
+    the tvmaze tools here too and silently break the specialist partition.
+    """
+    return [t for t in tools if bare_tool_name(t.name) in PLACES_TOOLS]
+
+
+async def load_tools(token: str | None = None) -> list:
+    """Adapt this specialist's MCP tools into LangChain tools."""
+    return owned_tools(await build_mcp_client(token).get_tools())
 
 
 def build_model() -> ChatBedrockConverse:
@@ -67,15 +86,15 @@ def build_model() -> ChatBedrockConverse:
     )
 
 
-async def build_agent():
+async def build_agent(token: str | None = None):
     """Assemble the LangGraph ReAct agent over the places tools."""
-    tools = await load_tools()
+    tools = await load_tools(token)
     return create_react_agent(build_model(), tools, prompt=SYSTEM_PROMPT)
 
 
-async def invoke(prompt: str) -> dict:
+async def invoke(prompt: str, token: str | None = None) -> dict:
     """Run the specialist on a single prompt and return its final state."""
-    agent = await build_agent()
+    agent = await build_agent(token)
     return await agent.ainvoke({"messages": [{"role": "user", "content": prompt}]})
 
 
@@ -91,7 +110,11 @@ def _message_text(message: object) -> str:
     return str(content)
 
 
-async def answer(question: str) -> str:
-    """Answer one places question end to end; the orchestrator's delegate."""
-    state = await invoke(question)
+async def answer(question: str, bearer_token: str | None = None) -> str:
+    """Answer one places question end to end; the orchestrator's delegate.
+
+    `bearer_token` is the caller's JWT, forwarded per request so the Gateway's
+    Cedar policies see the real user.
+    """
+    state = await invoke(question, bearer_token)
     return _message_text(state["messages"][-1])

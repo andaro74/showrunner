@@ -18,7 +18,7 @@ def test_orchestrator_registers_exactly_the_delegate_tools():
 def test_show_delegate_reaches_the_strands_specialist(monkeypatch):
     asked = []
 
-    def fake_answer(question: str) -> str:
+    def fake_answer(question: str, bearer_token: str | None = None) -> str:
         asked.append(question)
         return "Breaking Bad airs tonight"
 
@@ -32,7 +32,7 @@ def test_show_delegate_reaches_the_strands_specialist(monkeypatch):
 async def test_places_delegate_reaches_the_langgraph_specialist(monkeypatch):
     asked = []
 
-    async def fake_answer(question: str) -> str:
+    async def fake_answer(question: str, bearer_token: str | None = None) -> str:
         asked.append(question)
         return "Cinema at 47.6,-122.3"
 
