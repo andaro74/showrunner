@@ -192,11 +192,41 @@ agentcore add evaluator \
   --name ShowRunnerQuality \
   --type llm-as-a-judge \
   --level SESSION \
-  --model us.anthropic.claude-sonnet-4-5-20250514-v1:0 \
+  --model us.anthropic.claude-sonnet-4-6 \
   --instructions "Evaluate whether the agent fulfilled the user's request. Context: {context}" \
   --rating-scale 1-5-quality    # LLM-as-a-judge eval cases
 
 ```
+
+**Copy that model ID exactly; don't reconstruct one.** Current inference profiles carry **no
+date suffix**. A plausible-looking ID assembled from memory — say `us.anthropic.claude-sonnet-4-5-20250514-v1:0`,
+which pairs one model family with another's date — is accepted by `agentcore validate` and by
+`add evaluator`, then fails at CloudFormation with the evaluator in `CREATE_FAILED` and the whole
+stack rolled back. Nothing after the evaluator is even attempted, so one wrong string costs a
+full deploy cycle.
+
+Two independent checks before you deploy, because passing one tells you nothing about the other:
+
+```bash
+# 1. Does the profile exist?
+aws bedrock list-inference-profiles --region us-west-2 \
+  --query "inferenceProfileSummaries[?inferenceProfileId=='us.anthropic.claude-sonnet-4-6']"
+
+# 2. Is this account entitled to it?  (existing != usable)
+#    Note: the BARE foundation-model id here — no `us.` prefix, no `-v1:0` suffix.
+aws bedrock get-foundation-model-availability --region us-west-2 \
+  --model-id anthropic.claude-sonnet-4-6 --query agreementAvailability
+# -> {"status": "AVAILABLE"}
+```
+
+We failed each of these once: first on an ID that didn't exist, then on a real one the account
+had no agreement for (`Role does not have access for model ...`).
+
+The two commands take **different** id forms, which is its own trap: `us.anthropic.claude-sonnet-4-6`
+is a cross-region *inference profile* (what the evaluator wants), while `anthropic.claude-sonnet-4-6`
+is the underlying *foundation model* (what the availability API wants). Passing the wrong form —
+or appending a `-v1:0` that no longer exists — returns `ValidationException: The provided model
+identifier is invalid`, which is easy to misread as "no access" when it really means "wrong id shape".
 
 There is no `agentcore add identity`. Inbound Cognito JWT identity is configured as the
 gateway's JWT authorizer, and the Cognito pool is an **external prerequisite** — it isn't part
