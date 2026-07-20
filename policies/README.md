@@ -28,33 +28,41 @@ denied, just never seen. Two paths skip it:
 
 ## Files
 
-- **`showrunner_tools.cedar`** — the allow-list. All seven MCP tools, permitted
-  **one by one**. This is deliberate: using the target action group would mean any
-  tool later added to a server inherits permission silently. Per-tool permits keep
-  new tools denied until someone approves them here.
+- **`tools/*.cedar`** — the allow-list, **one permit per file** because `CreatePolicy`
+  accepts exactly one Cedar statement (a 7-permit file fails with *"Expected exactly
+  one policy statement, but got 7"*). Per-tool permits are deliberate: using the
+  target action group would mean any tool later added to a server inherits
+  permission silently. New tools stay denied until someone approves them here.
 - **`argument_bounds.cedar`** — narrows an approved tool by its arguments (caps
   `find_nearby` radius, which protects the rate-limited Overpass endpoint).
 
-## Applying them
+Keep these files ASCII-only: `add policy` snapshots the file into the manifest and
+has read UTF-8 comments as cp1252, mojibaking them.
+
+## Applying them (the sequence that actually deployed)
 
 Policies validate against a Cedar schema that the policy engine generates from the
 **deployed** gateway's tool definitions — so the gateway and its targets must exist
-first, and you need the real ARN.
+first, and you need the real ARN *and the real tool names*.
 
 ```
 1. agentcore add gateway --protocol-type None --authorizer-type CUSTOM_JWT \
      --discovery-url <cognito discovery url> --allowed-clients <app client id>
    # --allowed-clients, NOT --allowed-audience: a Cognito ACCESS token has no `aud`
    # claim (it carries `client_id`), so --allowed-audience matches ID tokens only.
-2. agentcore add gateway-target --type http-runtime --runtime <McpRuntime> ...
-   # NOTE: http-runtime targets require the gateway's protocolType to be "None";
-   # the CLI rejects them on an "MCP" gateway.
-3. agentcore deploy                        # gateway now has an ARN
-4. sed -i "s|<GATEWAY_ARN>|$REAL_ARN|g" policies/*.cedar
-5. agentcore add policy-engine --name ShowRunnerPolicies \
-     --attach-to-gateways <gateway> --attach-mode LOG_ONLY
-6. agentcore add policy --engine ShowRunnerPolicies --name AllowTools \
-     --source policies/showrunner_tools.cedar
+2. bash scripts/create_cognito_m2m.sh && bash scripts/wire_gateway_targets.sh
+   # mcp-server targets, NOT http-runtime: an httpRuntime target is an opaque proxy,
+   # so its Cedar schema has ONE action per target — the HTTP route "POST:/" — and
+   # per-tool actions like TvmazeMcpTarget___search_shows simply don't exist.
+3. agentcore deploy                        # gateway + targets live; tools enumerated
+4. # tools/list through the gateway, and take the ACTION NAMES from its output —
+   # they are <TargetName>___<tool>, so renaming a target renames every action.
+   # Substitute the real gateway ARN into policies/**/*.cedar.
+5. # engine attachment lives ON THE GATEWAY (add policy-engine's --attach-to-gateways
+   # writes nothing): gateway.policyEngineConfiguration = {policyEngineName, mode}.
+   agentcore add policy-engine --name ShowRunnerPolicies   # then set mode LOG_ONLY
+6. for f in policies/tools/*.cedar: agentcore add policy --engine ShowRunnerPolicies \
+     --name Allow<Tool> --source "$f"     # one add per file
 7. agentcore deploy
 ```
 
@@ -65,20 +73,27 @@ Engine mode wins over per-policy `enforcementMode`: a `LOG_ONLY` engine enforces
 nothing, even for `ACTIVE` policies. Note the API default is `ENFORCE`, so
 `LOG_ONLY` must be set explicitly.
 
-`validationMode` is `FAIL_ON_ANY_FINDINGS` by default (schema **plus** semantic
-checks). `IGNORE_ALL_FINDINGS` runs schema checks only — the documented escape
-hatch while the tool schema is still moving.
+**`validationMode` must be `IGNORE_ALL_FINDINGS` for every policy here.** The
+default `FAIL_ON_ANY_FINDINGS` includes semantic lint that has no passing shape for
+this design: a per-tool allow-list is flagged **"Overly Permissive"** (it grants the
+action to every authenticated `OAuthUser` — its purpose), and the radius guard is
+flagged **"Overly Restrictive"** (the linter discounts the `when` clause). Schema
+validation still runs under `IGNORE_ALL_FINDINGS`, so a wrong action name still
+fails the deploy — which is the check that matters.
 
-## Unverified — confirm before relying on it
+## Verified the hard way
 
-- ~~**Target names.**~~ **Confirmed.** `TvmazeTarget` and `PlacesTarget` now exist in
-  the manifest as `httpRuntime` targets (→ the `TvmazeMcp` / `PlacesMcp` runtimes),
-  and match the action prefixes used here.
-- **One statement per policy?** `Policy.statement` is a single string while these
-  files hold several. Whether `--source` splits a multi-statement file or expects
-  one statement per policy is untested — you may need one `add policy` per rule.
-- **`create-policy` request shape.** AWS docs are internally inconsistent about the
-  union member (`{"cedar":{"statement":…}}` vs `{"policy":{"statement":…}}`). Check
-  `aws bedrock-agentcore-control create-policy help` for your SDK version.
+- **Target/action names.** Actions are `<TargetName>___<tool>` and the CDK prefixes
+  the gateway ARN internally (`<arn>___TvmazeMcpTarget___search_shows`). Current
+  targets are `TvmazeMcpTarget`/`PlacesMcpTarget` — renamed from `TvmazeTarget`/
+  `PlacesTarget` because a target's type cannot change in place ("Target
+  configuration cannot be updated from runtime to mcpServer"); the rename forced
+  replacement and **renamed every action**, which is why these files were rewritten
+  from a live `tools/list` rather than edited.
+- **One statement per policy: confirmed.** `--source` does not split a file.
+- **`add policy` snapshots.** The manifest stores the statement text at `add` time;
+  editing a `.cedar` file afterwards changes nothing until the policy is removed
+  and re-added.
 - **`context.time.*`** appears in an AWS blog but not the conditions reference;
-  don't depend on it.
+  don't depend on it. (`context.input.radius` deployed fine; whether the gateway
+  populates it for MCP calls is untested until ENFORCE + traces.)

@@ -311,9 +311,18 @@ Three more things that bite here:
   with `ModuleNotFoundError: No module named 'mcp_servers'`, because executing a file puts *its*
   directory on `sys.path` instead of the repo root. That's why `serve_tvmaze.py` /
   `serve_places.py` exist — they fix `sys.path` and then start the server.
-- **Bind address.** FastMCP defaults to `127.0.0.1:8000`, which is unreachable from outside a
-  container. `mcp_servers/runtime.py` serves on **8080** (matching `BedrockAgentCoreApp`) and
-  binds `0.0.0.0` when it detects a container — the same probe the AgentCore SDK uses.
+- **The MCP contract is `0.0.0.0:8000/mcp` — port and bind address both bite.** AgentCore has
+  *two* service contracts: HTTP protocol (`BedrockAgentCoreApp`) on **8080** with
+  `/invocations` + `/ping`, and MCP protocol on **8000** at `/mcp`. We first copied 8080 from
+  `BedrockAgentCoreApp` — wrong contract: the platform probed 8000, found nothing, and every
+  call returned *"Runtime initialization time exceeded"* while uvicorn served healthily on a
+  port nobody looks at. FastMCP's own defaults (8000, `/mcp`) were right all along; the only
+  needed overrides are `0.0.0.0` (its `127.0.0.1` default is unreachable from outside the
+  container — and don't gate that on detection: the sandbox has no `/.dockerenv`, so container
+  probes return False there) plus `stateless_http=True` and `json_response=True`, which the
+  contract requires for the platform's load-balanced session handling. One more trap:
+  `serve_*.py` must *ask* for streamable-http — there is no CLI flag to set `MCP_TRANSPORT` on
+  a runtime, and an MCP server that falls back to stdio in the container binds no port at all.
 - **The response cache stops working.** `mcp_servers/places/cache.py` is *in-process*. One
   subprocess meant one cache; N runtime instances means N caches, so the rate-limited
   Nominatim/Overpass endpoints get hit ~N× harder (hard rule #5). A shared cache

@@ -58,7 +58,7 @@ Deploy uses the standalone entry files (`serve_*.py`); AgentCore runs an entry *
 
 1. **MCP servers stay framework-agnostic.** No Strands or LangChain imports inside `mcp_servers/` — both frameworks must consume them unchanged.
 2. **Identity → Gateway → Policy Engine → Policies.** Gateway relies on Identity's OAuth provider; the policy engine needs an existing gateway; Cedar policies validate against a schema generated from the *deployed* gateway's tools (so they need its real ARN). Roll policies out `LOG_ONLY`, then `ENFORCE`. Inbound JWT uses `allowedClients` (Cognito access tokens carry `client_id`, not `aud`), and the MCP runtimes keep their own `CUSTOM_JWT` — on `AWS_IAM` a direct runtime invoke bypasses the gateway and every Cedar policy.
-3. **A new gateway tool ships with a Cedar permit.** `policies/showrunner_tools.cedar` permits each tool individually and Cedar is default-deny — so an unlisted tool is refused. Adding a tool without adding its permit means it silently stops working through the gateway.
+3. **A new gateway tool ships with a Cedar permit.** `policies/tools/` holds one permit per file — `CreatePolicy` accepts exactly one Cedar statement — and Cedar is default-deny, so an unlisted tool is refused. Action names are `<TargetName>___<tool>` from the *deployed* gateway (currently `TvmazeMcpTarget`/`PlacesMcpTarget`); read them from a live `tools/list`, never guess. Permits need `validationMode: IGNORE_ALL_FINDINGS` (the semantic linter flags every intentional allow-list as "Overly Permissive").
 4. **Every new tool ships with** a pytest test and a one-line entry in the relevant SKILL.md.
 5. **Set a descriptive User-Agent** on every Nominatim/Overpass/OSRM request, and cache responses — public instances are rate-limited.
 
