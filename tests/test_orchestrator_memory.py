@@ -8,8 +8,8 @@ Identity's JWT `sub`, and that memory failures never break a turn.
 import base64
 import json
 
-from agents.strands import memory_config
-from agents.strands.agent import recall, remember, resolve_actor_id
+from agents.orchestrator import memory_config
+from agents.orchestrator.agent import recall, remember, resolve_actor_id
 
 
 def _jwt(claims: dict) -> str:

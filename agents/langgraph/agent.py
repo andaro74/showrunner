@@ -77,3 +77,21 @@ async def invoke(prompt: str) -> dict:
     """Run the specialist on a single prompt and return its final state."""
     agent = await build_agent()
     return await agent.ainvoke({"messages": [{"role": "user", "content": prompt}]})
+
+
+def _message_text(message: object) -> str:
+    """Flatten a LangChain message's content — Bedrock Converse may return a
+    list of content blocks instead of a plain string."""
+    content = getattr(message, "content", message)
+    if isinstance(content, list):
+        return "".join(
+            block.get("text", "") if isinstance(block, dict) else str(block)
+            for block in content
+        )
+    return str(content)
+
+
+async def answer(question: str) -> str:
+    """Answer one places question end to end; the orchestrator's delegate."""
+    state = await invoke(question)
+    return _message_text(state["messages"][-1])
