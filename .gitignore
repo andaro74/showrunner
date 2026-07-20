@@ -220,3 +220,5 @@ __marimo__/
 # AgentCore deployment targets — account ID + region, specific to each developer.
 # Regenerate locally; not shared via git.
 agentcore/aws-targets.json
+
+!deployed-state.json
