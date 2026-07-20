@@ -20,7 +20,7 @@ The project is deliberately two things at once:
 - The specialists partition the seven tools with no overlap (tested). MCP portability is what makes the split free: each server is consumed by a different framework with no per-framework tool rewrites, so which framework serves which server is interchangeable.
 
 **Layer 3 · Amazon Bedrock AgentCore (production concerns)**
-- **Runtime** — serverless host for each agent entrypoint.
+- **Runtime** — serverless hosts, three of them: the orchestrator (the only *agent* runtime — the specialists ship inside its bundle and run in-process) and the two MCP servers. Deployed specialists reach their servers through the Gateway, never stdio.
 - **Memory** — short-term (session) + long-term (genre preferences across sessions).
 - **Identity** — inbound Cognito JWT; scopes memory per real user (anti-impersonation via the `sub` claim). Not a standalone resource: it's the `CUSTOM_JWT` authorizer on a gateway, pointed at Cognito's OIDC discovery URL.
 - **Gateway** — managed tool routing/auth; production alternative to self-hosting the MCP servers.

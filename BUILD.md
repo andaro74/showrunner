@@ -470,6 +470,52 @@ unpermitted tool still succeeds while being traced, so denial isn't testable unt
 `ENFORCE`. And delete the demo user afterwards (`admin-delete-user`); left behind, it is a
 standing credential against a live gateway.
 
+### Deploying the orchestrator (and why the specialists don't get runtimes)
+
+The deployed shape is **three runtimes**: the orchestrator (agent, HTTP contract) plus the two
+MCP servers (MCP contract) behind the Gateway. The specialists do **not** get their own
+runtimes — they are in-process libraries that ship inside the orchestrator's CodeZip and run in
+its container. A runtime boundary between orchestrator and specialist would add a network hop,
+a second auth surface to secure, and a `BedrockAgentCoreApp` wrapper LangGraph doesn't have —
+in exchange for independent scaling that stateless, single-caller specialists don't need.
+
+```bash
+agentcore add agent --name ShowRunner --type byo --language Python --protocol HTTP \
+  --framework Strands --model-provider Bedrock \
+  --code-location . --entrypoint serve_orchestrator.py \
+  --authorizer-type CUSTOM_JWT --discovery-url "$DISCOVERY_URL" \
+  --allowed-clients "$COGNITO_CLIENT_ID" \
+  --request-header-allowlist Authorization
+agentcore deploy
+```
+
+Decisions and traps, each verified against the deployed runtime:
+
+- **Two duplication hazards, both closed in code.** A deployed agent defaulting to stdio would
+  spawn private in-container copies of the MCP servers — duplicating the deployed runtimes and
+  silently bypassing Gateway, Cedar, and Identity. The specialists instead auto-wire to the
+  CLI-injected `AGENTCORE_GATEWAY_<NAME>_URL` env var, so deployed = gateway and stdio only
+  happens locally. And since the Gateway exposes ALL seven tools at one endpoint, each
+  specialist filters the listed tools to the set it owns — otherwise both specialists would
+  register all seven and the partition would break only in production.
+- **`--request-header-allowlist Authorization` is what makes identity real.** The caller's JWT
+  reaches the handler's `request_headers`; the entrypoint stores it in a contextvar and the
+  delegates forward it, so the Gateway's Cedar policies evaluate the actual `OAuthUser` and
+  memory scopes to the real `sub`. Verified live: the returned `actor_id` equals the JWT `sub`.
+- **The entry file must live at the repo root.** `python <entrypoint>` puts the entry file's
+  directory on `sys.path`, and `agents/` contains a package named `langgraph`. The real
+  langgraph is a PEP 420 *namespace* package (no `__init__.py`), and a regular package anywhere
+  on the path beats a namespace package everywhere — so an entry file inside `agents/` made
+  `import langgraph.types` resolve to our own `agents/langgraph` and the container died at
+  import. This cannot reproduce locally, where `agents/` is never on `sys.path`.
+- **The CLI injects `MEMORY_<NAME>_ID`, not `AGENTCORE_MEMORY_ID`.** Without a fallback that
+  reads the injected name, memory silently disables on every deployed runtime — same failure
+  class as the namespace mismatch.
+- **Long turns outlive the sync connection (~100s).** A cold full-plan turn logged
+  "completed successfully (121s)" server-side while the client saw `RemoteDisconnected`; warm
+  short turns finish in ~30s. Use streaming (async-generator entrypoint) or async invocation
+  when long plans matter.
+
 Prompt for the memory wiring:
 
 > Wire AgentCore Memory into the Strands agent: short-term for the active session, long-term to store the user's genre preferences and remembered picks. Add `agents/strands/memory_config.py` with named namespaces. Note in the README that Identity's inbound JWT is what makes per-user memory safe (anti-impersonation via the `sub` claim), even though TVmaze itself is keyless.

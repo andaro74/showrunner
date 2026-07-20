@@ -66,6 +66,16 @@ Both are framework-agnostic FastMCP servers — they contain zero Strands or Lan
 
 The specialists **partition** the seven MCP tools — a test asserts they share none and cover all seven. The specialists never see each other or the user session; the orchestrator phrases each delegated question so it stands alone.
 
+**Deployed shape: three runtimes, not five.** The orchestrator is the only *agent* runtime
+([`serve_orchestrator.py`](serve_orchestrator.py), HTTP contract); the specialists ship inside
+its bundle and run in-process — they're stateless, have exactly one caller, and a runtime
+boundary would only add a network hop and a second auth surface. The two MCP servers run as
+their own runtimes (MCP contract) behind the Gateway. When deployed, the specialists auto-wire
+to the Gateway via the CLI-injected env var and filter the gateway's seven tools down to the
+set each owns — so local stdio and deployed gateway modes keep the same partition. The caller's
+JWT is forwarded per request all the way to the Gateway, so Cedar authorizes the *real* user
+and memory scopes to their `sub` claim.
+
 ## Memory, and why Identity is what makes it safe
 
 The orchestrator uses AgentCore Memory in two tiers ([`agents/orchestrator/memory_config.py`](agents/orchestrator/memory_config.py)):
@@ -112,6 +122,7 @@ The step-by-step method, with the exact prompts used at each stage, is in [`BUIL
 ```
 showrunner/
 ├── PROJECT.md · CLAUDE.md · BUILD.md    # spec, agent memory, build guide
+├── serve_orchestrator.py                # AgentCore entrypoint (root on purpose — see file)
 ├── mcp_servers/tvmaze · places          # keyless, framework-agnostic
 ├── agents/orchestrator · strands · langgraph   # central point + two framework specialists
 ├── agentcore/                           # AgentCore manifest + CDK (flat resource model)

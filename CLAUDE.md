@@ -53,6 +53,7 @@ Deploy uses the standalone entry files (`serve_*.py`); AgentCore runs an entry *
 - `strands` — show specialist; owns ONLY the tvmaze server via `MCPClient`.
 - `langgraph` — places specialist; owns ONLY the places server via `langchain-mcp-adapters`.
 The specialists **partition** the seven tools (no overlap — tested). MCP portability: each server is consumed by a *different* framework with no per-framework rewrites, so which framework serves which server is interchangeable.
+**Deployed shape:** the orchestrator is the ONLY agent runtime — specialists run in-process inside its bundle; do not give them runtimes. Its entry file `serve_orchestrator.py` **must stay at the repo root**: an entry file under `agents/` puts `agents/` on `sys.path`, and our `agents/langgraph` (regular package) then shadows the langgraph library (a namespace package) — the container dies at import, and it cannot reproduce locally. Deployed specialists auto-wire to the CLI-injected `AGENTCORE_GATEWAY_*_URL` and filter gateway tools to the set they own (`owned_tools`); memory reads the injected `MEMORY_<NAME>_ID`.
 
 **Layer 3 · Amazon Bedrock AgentCore (production concerns).** Runtime, Memory (short-term session + long-term genre prefs), Identity (Cognito JWT via a gateway's `CUSTOM_JWT` authorizer), Gateway (managed tool routing), Evaluation, Observability. Configured as a **flat resource model** — top-level arrays in `agentcore/agentcore.json`, deployed by `agentcore/cdk/`. There are no per-primitive directories; `evals/` holds our own eval harness.
 
