@@ -49,6 +49,27 @@
           ]
         }
       }
+    },
+    {
+      "name": "ShowRunner",
+      "build": "CodeZip",
+      "entrypoint": "serve_orchestrator.py",
+      "codeLocation": "./",
+      "runtimeVersion": "PYTHON_3_14",
+      "networkMode": "PUBLIC",
+      "protocol": "HTTP",
+      "requestHeaderAllowlist": [
+        "Authorization"
+      ],
+      "authorizerType": "CUSTOM_JWT",
+      "authorizerConfiguration": {
+        "customJwtAuthorizer": {
+          "discoveryUrl": "https://cognito-idp.us-west-2.amazonaws.com/us-west-2_EXAMPLE01/.well-known/openid-configuration",
+          "allowedClients": [
+            "exampleuserclientid0000001"
+          ]
+        }
+      }
     }
   ],
   "memories": [
