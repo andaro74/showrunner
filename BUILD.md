@@ -161,6 +161,37 @@ Commit. This side-by-side is the centerpiece of the blog post.
 
 ---
 
+## Phase 8.5 — Specialists + an orchestrator (added later; the architecture evolved)
+
+Phases 7–8 built both agents over BOTH servers — the same-tools parity was the portability
+proof. Later the design moved to multi-agent composition. The prompt:
+
+> Remove the tvmaze implementation from the LangChain version. Remove the places implementation from the Strands version. Then, add an orchestrator agent that access the strands and langChain agents so that it serves as the central agent point.
+
+What that produced, and the decisions worth copying:
+
+- **The specialists partition the toolset.** Strands keeps only tvmaze (4 tools), LangGraph
+  keeps only places (3). The parity test didn't die — it *changed meaning*: instead of "both
+  agents expose identical tools" it now asserts the specialists share **no** tools and together
+  cover all seven. A refactor should transform your invariants, not delete them.
+- **Portability is what made the split free.** Each server is now consumed by a *different*
+  framework, still with zero per-framework rewrites — which framework serves which server is
+  interchangeable. Same proof, stronger form.
+- **Agents-as-tools.** The orchestrator (`agents/orchestrator/`, Strands) has exactly two
+  tools: `ask_show_expert` and `ask_places_expert`. Each delegate's docstring is its routing
+  contract — the model picks a specialist the way it picks any tool. The places delegate is
+  `async def` on purpose: Strands awaits coroutine tools on its own event loop, so LangGraph's
+  async `invoke` composes without a nested `asyncio.run`.
+- **User-facing concerns move to the center.** The `BedrockAgentCoreApp` entrypoint, Memory
+  (`memory_config.py` moved wholesale), and identity (JWT `sub` → actor) all left the Strands
+  agent for the orchestrator. Specialists stay plain domain agents: build clients, build agent,
+  `answer(question)`. They never see the user session — the orchestrator phrases each delegated
+  question to stand alone.
+- **Tests need no infrastructure.** The orchestrator tests monkeypatch the specialists' `answer`
+  functions: routing and wiring are asserted with no MCP subprocesses, no Bedrock, no network.
+
+---
+
 ## Phase 9 — Turn a repeated task into a skill
 
 You'll add tools often, so encode the recipe once (skills are markdown workflows invoked as slash commands):

@@ -3,7 +3,7 @@
 A movie-night agent: it answers *what's on tonight, where can I watch it near me, and do I have time to grab food first.*
 
 The project is deliberately two things at once:
-1. A useful agent architecture (two frameworks sharing two keyless MCP servers, on AWS AgentCore).
+1. A useful agent architecture (an orchestrator composing two framework specialists over two keyless MCP servers, on AWS AgentCore).
 2. A worked example of building with Claude Code (plan mode, lean CLAUDE.md, verified commits, subagents, skills, hooks).
 
 ## Architecture — three layers
@@ -13,9 +13,11 @@ The project is deliberately two things at once:
 - `tvmaze` — TV/show data over `https://api.tvmaze.com` (no key). Tools: `search_shows`, `get_schedule`, `get_episodes`, `get_cast`.
 - `places` — location data over OpenStreetMap (no key). Tools: `geocode` (Nominatim), `find_nearby` (Overpass — cinemas + restaurants), `travel_time` (OSRM).
 
-**Layer 2 · Agents (consume the SAME servers)**
-- `strands` — primary agent, connects via Strands `MCPClient`, wrapped in `BedrockAgentCoreApp`.
-- `langgraph` — variant, loads the identical servers via `langchain-mcp-adapters`. Exists to prove MCP portability: one server, two frameworks, no per-framework tool rewrites.
+**Layer 2 · Agents (orchestrator + two framework specialists)**
+- `orchestrator` — the central agent point (Strands). Delegates to the specialists as tools (agents-as-tools) and owns the user-facing concerns: the `BedrockAgentCoreApp` entrypoint, Memory, and identity.
+- `strands` — show specialist; owns only the `tvmaze` server via Strands `MCPClient`.
+- `langgraph` — places specialist; owns only the `places` server via `langchain-mcp-adapters`.
+- The specialists partition the seven tools with no overlap (tested). MCP portability is what makes the split free: each server is consumed by a different framework with no per-framework tool rewrites, so which framework serves which server is interchangeable.
 
 **Layer 3 · Amazon Bedrock AgentCore (production concerns)**
 - **Runtime** — serverless host for each agent entrypoint.
@@ -34,7 +36,7 @@ turns it into AWS infrastructure via the CDK project in `agentcore/cdk/`. The ma
 
 ## The user flow (one turn)
 
-Identity validates the caller → Memory loads their history → the agent reasons (Claude on Bedrock) → tool calls resolve show + nearby cinema + food + travel time → new facts persist to Memory → the turn is traced.
+Identity validates the caller → Memory loads their history → the orchestrator reasons (Claude on Bedrock) and delegates: show questions to the Strands specialist (tvmaze tools), location questions to the LangGraph specialist (places tools) → the plan is assembled (show + cinema + food + travel time) → new facts persist to Memory → the turn is traced.
 
 ## Build order (smallest-first, each independently testable)
 
@@ -45,7 +47,8 @@ Identity validates the caller → Memory loads their history → the agent reaso
 5. `langgraph` variant
 6. `add-mcp-tool` skill + hooks (ruff/pytest, secret-blocking)
 7. AgentCore: `agentcore/` manifest → memory → gateway (with the `CUSTOM_JWT` authorizer that supplies identity) → evaluator (one commit each)
-8. CI + docs, then push
+8. Specialist split + `orchestrator` — strands keeps tvmaze, langgraph keeps places, the orchestrator composes them as tools and takes over the entrypoint/memory/identity
+9. CI + docs, then push
 
 ## Non-goals / constraints
 

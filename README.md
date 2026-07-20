@@ -2,7 +2,7 @@
 
 A movie-night agent: it figures out **what's on tonight**, **where you can watch it near you**, and **whether you have time to grab food first** — then plans the evening around it.
 
-But the movie app is the vehicle, not the point. ShowRunner is a compact, runnable example of a **production-shaped agent architecture**: two agent frameworks (Strands + LangGraph) sharing the *same* two keyless MCP servers, wired into Amazon Bedrock AgentCore for memory, identity, tool routing, and evaluation.
+But the movie app is the vehicle, not the point. ShowRunner is a compact, runnable example of a **production-shaped agent architecture**: an orchestrator composing two framework specialists (Strands for shows, LangGraph for places), each owning one keyless MCP server, wired into Amazon Bedrock AgentCore for memory, identity, tool routing, and evaluation.
 
 Everything here is **free and keyless** — clone it and run it, no API signups, no billing.
 
@@ -14,7 +14,8 @@ Everything here is **free and keyless** — clone it and run it, no API signups,
 
 Most "AI agent" demos stop at a single framework calling a single API. ShowRunner shows the two things that actually matter when you go past a demo:
 
-- **MCP portability** — one MCP server, consumed unchanged by two different frameworks. Swap Strands for LangGraph and the tools don't move. That's the whole promise of MCP, made concrete.
+- **MCP portability** — the same server code is consumed unchanged by two different frameworks: tvmaze through Strands, places through LangGraph. Which framework serves which server is interchangeable — the tools don't move. That's the whole promise of MCP, made concrete, and it's what makes the multi-agent split free.
+- **Multi-agent composition** — an orchestrator routes each sub-question to the right specialist (agents-as-tools) and owns the user-facing concerns: entrypoint, memory, identity.
 - **Production concerns** — memory across sessions, per-user identity, managed tool routing, and evaluation, added one layer at a time instead of hand-rolled.
 
 It was also built entirely through [Claude Code](https://www.claude.com/product/claude-code)'s own workflow — plan mode, a lean `CLAUDE.md`, verified commits, subagents, and hooks — so the repo doubles as a worked example of *how* to build something like this. See [`BUILD.md`](BUILD.md).
@@ -24,7 +25,7 @@ It was also built entirely through [Claude Code](https://www.claude.com/product/
 | Layer | What | Keyless? |
 |-------|------|----------|
 | **MCP servers** | `tvmaze` (what's on) · `places` (cinemas, restaurants, travel time via OpenStreetMap) | ✅ |
-| **Agents** | `strands` (primary) · `langgraph` (variant, same servers) | — |
+| **Agents** | `orchestrator` (central point) · `strands` (show specialist) · `langgraph` (places specialist) | — |
 | **AgentCore** | runtime · memory · identity · gateway · evaluation · observability | — |
 
 Full spec: [`PROJECT.md`](PROJECT.md).
@@ -42,7 +43,7 @@ uv sync                                   # rebuild the exact environment from t
 uv run pytest                             # everything green?
 
 uv run python mcp_servers/tvmaze/server.py   # run a server standalone
-uv run agentcore dev                          # run the Strands agent locally
+uv run python -m agents.orchestrator.agent   # serve the orchestrator locally (:8080)
 ```
 
 Copy `.env.example` to `.env` if you're wiring up the AgentCore layer; the core demo needs no secrets.
@@ -55,11 +56,19 @@ Copy `.env.example` to `.env` if you're wiring up the AgentCore layer; the core 
 **`places`** — over OpenStreetMap (no key).
 `geocode` (Nominatim) · `find_nearby` (Overpass — cinemas + restaurants) · `travel_time` (OSRM)
 
-Both are framework-agnostic FastMCP servers — they contain zero Strands or LangChain code, which is exactly why both agents can share them.
+Both are framework-agnostic FastMCP servers — they contain zero Strands or LangChain code, which is exactly why each can be served by a different framework (and swapped) without touching the server.
+
+## The three agents
+
+- **`orchestrator`** ([`agents/orchestrator/`](agents/orchestrator/)) — the central agent point, in Strands. Its only tools are the two delegates `ask_show_expert` and `ask_places_expert` (agents-as-tools); it routes each sub-question, assembles the movie-night plan, and owns the `BedrockAgentCoreApp` entrypoint, Memory, and identity.
+- **`strands`** — show specialist. Owns *only* the tvmaze server via Strands `MCPClient`.
+- **`langgraph`** — places specialist. Owns *only* the places server via `langchain-mcp-adapters`.
+
+The specialists **partition** the seven MCP tools — a test asserts they share none and cover all seven. The specialists never see each other or the user session; the orchestrator phrases each delegated question so it stands alone.
 
 ## Memory, and why Identity is what makes it safe
 
-The Strands agent uses AgentCore Memory in two tiers ([`agents/strands/memory_config.py`](agents/strands/memory_config.py)):
+The orchestrator uses AgentCore Memory in two tiers ([`agents/orchestrator/memory_config.py`](agents/orchestrator/memory_config.py)):
 
 - **Short-term** — the active session's turns, keyed by `(actor_id, session_id)` and replayed into the next turn.
 - **Long-term** — durable records under two named namespaces, both scoped by actor:
@@ -93,7 +102,8 @@ The repo grows one verified, single-purpose commit at a time — so `git log` *i
 5. LangGraph variant — same servers, second framework, no rewrites
 6. Skill + hooks — guardrails become automatic
 7. AgentCore memory → identity → evaluation (one commit each)
-8. CI + docs
+8. Specialist split + orchestrator — agents-as-tools; entrypoint/memory/identity move to the center
+9. CI + docs
 
 The step-by-step method, with the exact prompts used at each stage, is in [`BUILD.md`](BUILD.md).
 
@@ -103,7 +113,7 @@ The step-by-step method, with the exact prompts used at each stage, is in [`BUIL
 showrunner/
 ├── PROJECT.md · CLAUDE.md · BUILD.md    # spec, agent memory, build guide
 ├── mcp_servers/tvmaze · places          # keyless, framework-agnostic
-├── agents/strands · langgraph           # two frameworks, same servers
+├── agents/orchestrator · strands · langgraph   # central point + two framework specialists
 ├── agentcore/                           # AgentCore manifest + CDK (flat resource model)
 ├── evals/                               # our LLM-as-judge harness
 ├── tests/                               # a test per tool
