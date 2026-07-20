@@ -339,27 +339,105 @@ action     AgentCore::Action::"<Target>___<tool>"   # triple underscore, NO wild
 resource   AgentCore::Gateway::"<gateway-arn>"      # the gateway, not the tool
 ```
 
-The policies live in [`policies/`](policies/) — each of the seven tools permitted
+The policies live in [`policies/`](policies/) — **one permit per file** under `policies/tools/`,
+because `CreatePolicy` accepts exactly one Cedar statement. Each of the seven tools is permitted
 individually, so a newly added tool stays denied until someone approves it.
 
 The full ordering is **Identity → Gateway → Policy Engine → Policies**. Policies are added
 *last* because they validate against a Cedar schema the engine generates from the **deployed**
-gateway's tool definitions — you need the real ARN and real targets:
+gateway's tool definitions — you need the real ARN and the real tool names:
 
 ```
-agentcore add gateway ...            # + gateway-targets for tvmaze and places
-agentcore deploy                     # gateway now has an ARN
-# substitute the ARN into policies/*.cedar
-agentcore add policy-engine --name ShowRunnerPolicies \
-  --attach-to-gateways <gateway> --attach-mode LOG_ONLY
-agentcore add policy --engine ShowRunnerPolicies --name AllowTools \
-  --source policies/showrunner_tools.cedar
+bash scripts/create_cognito_m2m.sh      # gateway->runtime client_credentials client
+bash scripts/wire_gateway_targets.sh    # mcp-server targets + outbound OAuth credential
+agentcore deploy                        # gateway has an ARN; tools now enumerated
+# read the ACTION NAMES from a live tools/list (below), then substitute the real
+# gateway ARN into policies/**/*.cedar
+agentcore add policy-engine --name ShowRunnerPolicies
+# attachment lives on the GATEWAY: policyEngineConfiguration {policyEngineName, mode: LOG_ONLY}
+for f in policies/tools/*.cedar; do
+  agentcore add policy --engine ShowRunnerPolicies --name "Allow$(basename "$f" .cedar)" \
+    --source "$f" --validation-mode IGNORE_ALL_FINDINGS
+done
 agentcore deploy
 ```
 
 Roll out in **`LOG_ONLY`** first — it evaluates every call and traces whether it *would* be
 denied, without enforcing, so you see what a policy breaks before it breaks it. Flip to
 `ENFORCE` when the traces are clean. (The API default is `ENFORCE`, so `LOG_ONLY` is opt-in.)
+
+`IGNORE_ALL_FINDINGS` is not laziness here: the default `FAIL_ON_ANY_FINDINGS` runs a semantic
+lint that this design can never satisfy. A per-tool allow-list is rejected as *"Overly
+Permissive"* (it grants the action to every authenticated `OAuthUser` — which is its entire
+purpose), and the radius guard is rejected as *"Overly Restrictive"* (the linter discounts the
+`when` clause). Schema validation still runs, so a wrong action name still fails the deploy —
+which is the check that actually protects you.
+
+### Smoke-testing the deployed Gateway with curl
+
+Before wiring an agent to it, prove the chain end to end with the smallest possible client. The
+gateway speaks plain JSON-RPC over HTTPS at `/mcp`:
+
+```bash
+GW=https://<gateway-id>.gateway.bedrock-agentcore.<region>.amazonaws.com/mcp
+```
+
+**Get a user access token.** `InitiateAuth` is unsigned, so curl alone is enough — but the app
+client has a secret, so you must compute `SECRET_HASH` = base64(HMAC-SHA256(key=*client_secret*,
+msg=*username+client_id*)). (Creating the user needs the AWS CLI: admin APIs *do* require SigV4.)
+
+```bash
+USER=curl-demo; PW='CurlDemo!7xKq2wPz'
+aws cognito-idp admin-create-user --user-pool-id "$POOL" --username "$USER" \
+  --message-action SUPPRESS --region "$REGION"          # SUPPRESS = no invite email
+aws cognito-idp admin-set-user-password --user-pool-id "$POOL" --username "$USER" \
+  --password "$PW" --permanent --region "$REGION"
+
+SECRET_HASH=$(printf '%s' "${USER}${CID}" | openssl dgst -sha256 -hmac "$CSEC" -binary | base64)
+
+TOKEN=$(curl -s -X POST "https://cognito-idp.${REGION}.amazonaws.com/" \
+  -H "Content-Type: application/x-amz-json-1.1" \
+  -H "X-Amz-Target: AWSCognitoIdentityProviderService.InitiateAuth" \
+  -d "{\"AuthFlow\":\"USER_PASSWORD_AUTH\",\"ClientId\":\"${CID}\",
+       \"AuthParameters\":{\"USERNAME\":\"${USER}\",\"PASSWORD\":\"${PW}\",\"SECRET_HASH\":\"${SECRET_HASH}\"}}" \
+  | python -c "import json,sys; print(json.load(sys.stdin)['AuthenticationResult']['AccessToken'])")
+```
+
+**List the tools, then call one.** `Accept` must name *both* media types, and there is no
+`initialize` handshake or `Mcp-Session-Id` to manage — the runtimes are stateless:
+
+```bash
+curl -s -X POST "$GW" -H "Authorization: Bearer $TOKEN" \
+  -H "Content-Type: application/json" -H "Accept: application/json, text/event-stream" \
+  -d '{"jsonrpc":"2.0","id":1,"method":"tools/list"}'
+
+curl -s -X POST "$GW" -H "Authorization: Bearer $TOKEN" \
+  -H "Content-Type: application/json" -H "Accept: application/json, text/event-stream" \
+  -d '{"jsonrpc":"2.0","id":2,"method":"tools/call","params":{
+        "name":"TvmazeMcpTarget___search_shows","arguments":{"query":"Breaking Bad"}}}'
+```
+
+`tools/list` returns the seven `<Target>___<tool>` names — **this output is the source of truth
+for your Cedar action names.** `search_shows` returns Breaking Bad (id 169, premiered
+2008-01-20); `PlacesMcpTarget___geocode` with `{"query":"Seattle, WA"}` returns
+`47.6038321,-122.330062`. Swap the `<Target>` prefix to hit the other server.
+
+Observed responses, which is the fastest way to tell *which* thing is wrong:
+
+| Credential | Code | Why |
+|---|---|---|
+| User **access** token | 200 | `client_id` claim matches the gateway's `allowedClients` |
+| **M2M** token (`showrunner/invoke`) | **403** | The tempting shortcut — no user required — but M2M is the *gateway→runtime* credential, not the inbound one |
+| Cognito **ID** token | 403 | Carries `aud`, not `client_id` |
+| No token | 401 | — |
+
+That 403 on the M2M token is the design working: the two hops deliberately use different
+credentials, and that separation is exactly what closes the direct-runtime bypass.
+
+Two limits worth stating plainly. Under `LOG_ONLY` this exercises **authentication only** — an
+unpermitted tool still succeeds while being traced, so denial isn't testable until you flip to
+`ENFORCE`. And delete the demo user afterwards (`admin-delete-user`); left behind, it is a
+standing credential against a live gateway.
 
 Prompt for the memory wiring:
 
