@@ -59,6 +59,10 @@ def build_agent() -> Agent:
         model=os.environ.get("BEDROCK_MODEL_ID"),
         system_prompt=SYSTEM_PROMPT,
         tools=[tool(ask_show_expert), tool(ask_places_expert)],
+        # No streaming printer: the reply is returned from the entrypoint, and the
+        # default PrintingCallbackHandler crashes on emoji under cp1252 consoles
+        # (and interleaves garbage when both agents stream to one stdout).
+        callback_handler=None,
     )
 
 

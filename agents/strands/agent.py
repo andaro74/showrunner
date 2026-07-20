@@ -68,6 +68,9 @@ def build_agent(tools: list) -> Agent:
         model=os.environ.get("BEDROCK_MODEL_ID"),
         system_prompt=SYSTEM_PROMPT,
         tools=tools,
+        # No streaming printer: answer() returns the text, and the default
+        # handler crashes on emoji under cp1252 consoles (see orchestrator).
+        callback_handler=None,
     )
 
 
