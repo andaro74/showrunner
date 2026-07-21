@@ -662,6 +662,9 @@ Verified behavior worth knowing:
   credential — the MCP runtimes trust it, the orchestrator deliberately doesn't).
 - **Sessions resume.** Each invoke prints a session id; pass it back with
   `--session-id <id>` for conversation continuity (short-term memory replays the turns).
+- **`--session-id` must be at least 33 characters.** A shorter one fails the call outright with
+  `400 ... Value at 'runtimeSessionId' failed to satisfy constraint: Member must have length
+  greater than or equal to 33`. The `eval-session-showrunner-success-00N` ids above are 35.
 - **Keep test prompts narrow.** A warm single-specialist question ("what's on PBS tonight?")
   returns in ~30s; a cold full movie-night plan can outlive the ~100s sync connection window —
   the server still completes and logs the turn even when the client disconnects.

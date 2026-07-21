@@ -92,7 +92,10 @@ done
 # outboundAuth.credentialName, and validation then fails with:
 #     outboundAuth.credentialName: OAUTH outbound auth requires a credentialName
 # The credential must be a separate resource, referenced by name.
-agentcore remove credential --name "$CREDENTIAL" -y >/dev/null 2>&1 || true
+# Do NOT `remove` first. Once gateway targets reference this credential, remove
+# fails with "referenced by gateway target(s): ... Use force to override" -- and
+# `remove credential` has no --force flag, so the error cannot be satisfied. It
+# was harmless here only because `|| true` swallowed it and `add` overwrites.
 agentcore add credential \
   --name "$CREDENTIAL" \
   --type oauth \

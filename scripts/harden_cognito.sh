@@ -65,6 +65,16 @@ command -v aws >/dev/null || { echo "aws CLI not found" >&2; exit 1; }
 # `set -e` would abort before the friendly message below.
 read_env() { grep "^$1=" "$ENV_FILE" 2>/dev/null | head -1 | cut -d= -f2- | tr -d '"' || true; }
 
+# The AWS CLI here is a NATIVE Windows exe, so it does not share Git Bash's view
+# of the filesystem: `mktemp` returns /tmp/tmp.X (really
+# C:/Users/<you>/AppData/Local/Temp/tmp.X), but aws.exe reads "/tmp/tmp.X" as
+# C:\tmp\tmp.X and fails with "Unable to load paramfile ... No such file".
+# cygpath -m emits the mixed form (C:/...) that both understand. On Linux/macOS
+# cygpath is absent and the path is already correct, so pass it through.
+winpath() {
+  if command -v cygpath >/dev/null 2>&1; then cygpath -m "$1"; else printf '%s' "$1"; fi
+}
+
 REGION="${REGION:-$(read_env AWS_REGION)}"
 REGION="${REGION:-us-west-2}"
 POOL_ID=$(read_env COGNITO_USER_POOL_ID)
@@ -136,14 +146,15 @@ PY
 
     echo "  setting  : AllowAdminCreateUserOnly false -> true"
     if [ "$APPLY" -eq 1 ]; then
-      aws cognito-idp update-user-pool --region "$REGION" --cli-input-json "file://$PAYLOAD" >/dev/null
+      aws cognito-idp update-user-pool --region "$REGION" \
+        --cli-input-json "file://$(winpath "$PAYLOAD")" >/dev/null
       VERIFY=$(aws cognito-idp describe-user-pool --user-pool-id "$POOL_ID" --region "$REGION" \
         --query 'UserPool.AdminCreateUserConfig.AllowAdminCreateUserOnly' --output text)
       echo "  verified : AllowAdminCreateUserOnly=$VERIFY"
       [ "$VERIFY" = "True" ] || { echo "  UPDATE DID NOT TAKE EFFECT" >&2; exit 1; }
     else
       echo "  [dry-run] aws cognito-idp update-user-pool --cli-input-json file://<payload>"
-      echo "  [dry-run] payload written to: $PAYLOAD"
+      echo "  [dry-run] payload written to: $(winpath "$PAYLOAD")"
       echo "            review it, then re-run with --apply"
       trap - EXIT   # keep the payload around so it can actually be reviewed
       rm -f "$SKELETON" "$DESCRIBED"
