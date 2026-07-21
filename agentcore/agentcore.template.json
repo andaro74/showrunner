@@ -22,9 +22,9 @@
       "authorizerType": "CUSTOM_JWT",
       "authorizerConfiguration": {
         "customJwtAuthorizer": {
-          "discoveryUrl": "https://cognito-idp.us-west-2.amazonaws.com/us-west-2_EXAMPLE01/.well-known/openid-configuration",
+          "discoveryUrl": "https://cognito-idp.${AWS_REGION}.amazonaws.com/${COGNITO_USER_POOL_ID}/.well-known/openid-configuration",
           "allowedClients": [
-            "examplem2mclientid00000002"
+            "${COGNITO_M2M_CLIENT_ID}"
           ]
         }
       }
@@ -43,9 +43,9 @@
       "authorizerType": "CUSTOM_JWT",
       "authorizerConfiguration": {
         "customJwtAuthorizer": {
-          "discoveryUrl": "https://cognito-idp.us-west-2.amazonaws.com/us-west-2_EXAMPLE01/.well-known/openid-configuration",
+          "discoveryUrl": "https://cognito-idp.${AWS_REGION}.amazonaws.com/${COGNITO_USER_POOL_ID}/.well-known/openid-configuration",
           "allowedClients": [
-            "examplem2mclientid00000002"
+            "${COGNITO_M2M_CLIENT_ID}"
           ]
         }
       }
@@ -64,9 +64,9 @@
       "authorizerType": "CUSTOM_JWT",
       "authorizerConfiguration": {
         "customJwtAuthorizer": {
-          "discoveryUrl": "https://cognito-idp.us-west-2.amazonaws.com/us-west-2_EXAMPLE01/.well-known/openid-configuration",
+          "discoveryUrl": "https://cognito-idp.${AWS_REGION}.amazonaws.com/${COGNITO_USER_POOL_ID}/.well-known/openid-configuration",
           "allowedClients": [
-            "exampleuserclientid0000001"
+            "${COGNITO_USER_CLIENT_ID}"
           ]
         }
       },
@@ -106,7 +106,7 @@
     {
       "authorizerType": "OAuthCredentialProvider",
       "name": "GatewayToRuntimes",
-      "discoveryUrl": "https://cognito-idp.us-west-2.amazonaws.com/us-west-2_EXAMPLE01/.well-known/openid-configuration",
+      "discoveryUrl": "https://cognito-idp.${AWS_REGION}.amazonaws.com/${COGNITO_USER_POOL_ID}/.well-known/openid-configuration",
       "scopes": [
         "showrunner/invoke"
       ],
@@ -173,7 +173,7 @@
               }
             }
           ],
-          "endpoint": "https://bedrock-agentcore.us-west-2.amazonaws.com/runtimes/arn%3Aaws%3Abedrock-agentcore%3Aus-west-2%3A123456789012%3Aruntime%2FmyProject_TvmazeMcp-EXAMPLE01/invocations?qualifier=DEFAULT",
+          "endpoint": "https://bedrock-agentcore.${AWS_REGION}.amazonaws.com/runtimes/arn%3Aaws%3Abedrock-agentcore%3A${AWS_REGION}%3A${AWS_ACCOUNT_ID}%3Aruntime%2F${RUNTIME_ID_TVMAZEMCP}/invocations?qualifier=DEFAULT",
           "outboundAuth": {
             "type": "OAUTH",
             "credentialName": "GatewayToRuntimes"
@@ -191,7 +191,7 @@
               }
             }
           ],
-          "endpoint": "https://bedrock-agentcore.us-west-2.amazonaws.com/runtimes/arn%3Aaws%3Abedrock-agentcore%3Aus-west-2%3A123456789012%3Aruntime%2FmyProject_PlacesMcp-EXAMPLE02/invocations?qualifier=DEFAULT",
+          "endpoint": "https://bedrock-agentcore.${AWS_REGION}.amazonaws.com/runtimes/arn%3Aaws%3Abedrock-agentcore%3A${AWS_REGION}%3A${AWS_ACCOUNT_ID}%3Aruntime%2F${RUNTIME_ID_PLACESMCP}/invocations?qualifier=DEFAULT",
           "outboundAuth": {
             "type": "OAUTH",
             "credentialName": "GatewayToRuntimes"
@@ -201,9 +201,9 @@
       "authorizerType": "CUSTOM_JWT",
       "authorizerConfiguration": {
         "customJwtAuthorizer": {
-          "discoveryUrl": "https://cognito-idp.us-west-2.amazonaws.com/us-west-2_EXAMPLE01/.well-known/openid-configuration",
+          "discoveryUrl": "https://cognito-idp.${AWS_REGION}.amazonaws.com/${COGNITO_USER_POOL_ID}/.well-known/openid-configuration",
           "allowedClients": [
-            "exampleuserclientid0000001"
+            "${COGNITO_USER_CLIENT_ID}"
           ]
         }
       },
@@ -211,65 +211,18 @@
       "exceptionLevel": "NONE",
       "policyEngineConfiguration": {
         "policyEngineName": "ShowRunnerPolicies",
-        "mode": "LOG_ONLY"
+        "mode": "ENFORCE"
       }
     }
   ],
-  "unassignedTargets": [
-    {
-      "name": "TmpMcpTarget2",
-      "targetType": "mcpServer",
-      "toolDefinitions": [
-        {
-          "name": "TmpMcpTarget2",
-          "description": "Tool for TmpMcpTarget2",
-          "inputSchema": {
-            "type": "object"
-          }
-        }
-      ],
-      "endpoint": "https://example.com/mcp"
-    },
-    {
-      "name": "T1",
-      "targetType": "mcpServer",
-      "toolDefinitions": [
-        {
-          "name": "T1",
-          "description": "Tool for T1",
-          "inputSchema": {
-            "type": "object"
-          }
-        }
-      ],
-      "endpoint": "https://example.com/mcp"
-    },
-    {
-      "name": "T3",
-      "targetType": "mcpServer",
-      "toolDefinitions": [
-        {
-          "name": "T3",
-          "description": "Tool for T3",
-          "inputSchema": {
-            "type": "object"
-          }
-        }
-      ],
-      "endpoint": "https://example.com/mcp",
-      "outboundAuth": {
-        "type": "OAUTH",
-        "credentialName": "TmpCred"
-      }
-    }
-  ],
+  "unassignedTargets": [],
   "policyEngines": [
     {
       "name": "ShowRunnerPolicies",
       "policies": [
         {
           "name": "AllowPlacesFindNearby",
-          "statement": "// Permits PlacesMcpTarget -> find_nearby through the gateway.\n// One statement per file: CreatePolicy accepts exactly one.\n\npermit(\n  principal is AgentCore::OAuthUser,\n  action == AgentCore::Action::\"PlacesMcpTarget___find_nearby\",\n  resource == AgentCore::Gateway::\"arn:aws:bedrock-agentcore:us-west-2:123456789012:gateway/myproject-my-gateway-example01\"\n);",
+          "statement": "// Permits PlacesMcpTarget -> find_nearby through the gateway.\n// One statement per file: CreatePolicy accepts exactly one.\n\npermit(\n  principal is AgentCore::OAuthUser,\n  action == AgentCore::Action::\"PlacesMcpTarget___find_nearby\",\n  resource == AgentCore::Gateway::\"arn:aws:bedrock-agentcore:${AWS_REGION}:${AWS_ACCOUNT_ID}:gateway/${GATEWAY_ID}\"\n);",
           "sourceFile": "policies/tools/places_find_nearby.cedar",
           "validationMode": "IGNORE_ALL_FINDINGS",
           "enforcementMode": "ACTIVE",
@@ -277,7 +230,7 @@
         },
         {
           "name": "AllowPlacesGeocode",
-          "statement": "// Permits PlacesMcpTarget -> geocode through the gateway.\n// One statement per file: CreatePolicy accepts exactly one.\n\npermit(\n  principal is AgentCore::OAuthUser,\n  action == AgentCore::Action::\"PlacesMcpTarget___geocode\",\n  resource == AgentCore::Gateway::\"arn:aws:bedrock-agentcore:us-west-2:123456789012:gateway/myproject-my-gateway-example01\"\n);",
+          "statement": "// Permits PlacesMcpTarget -> geocode through the gateway.\n// One statement per file: CreatePolicy accepts exactly one.\n\npermit(\n  principal is AgentCore::OAuthUser,\n  action == AgentCore::Action::\"PlacesMcpTarget___geocode\",\n  resource == AgentCore::Gateway::\"arn:aws:bedrock-agentcore:${AWS_REGION}:${AWS_ACCOUNT_ID}:gateway/${GATEWAY_ID}\"\n);",
           "sourceFile": "policies/tools/places_geocode.cedar",
           "validationMode": "IGNORE_ALL_FINDINGS",
           "enforcementMode": "ACTIVE",
@@ -285,7 +238,7 @@
         },
         {
           "name": "AllowPlacesTravelTime",
-          "statement": "// Permits PlacesMcpTarget -> travel_time through the gateway.\n// One statement per file: CreatePolicy accepts exactly one.\n\npermit(\n  principal is AgentCore::OAuthUser,\n  action == AgentCore::Action::\"PlacesMcpTarget___travel_time\",\n  resource == AgentCore::Gateway::\"arn:aws:bedrock-agentcore:us-west-2:123456789012:gateway/myproject-my-gateway-example01\"\n);",
+          "statement": "// Permits PlacesMcpTarget -> travel_time through the gateway.\n// One statement per file: CreatePolicy accepts exactly one.\n\npermit(\n  principal is AgentCore::OAuthUser,\n  action == AgentCore::Action::\"PlacesMcpTarget___travel_time\",\n  resource == AgentCore::Gateway::\"arn:aws:bedrock-agentcore:${AWS_REGION}:${AWS_ACCOUNT_ID}:gateway/${GATEWAY_ID}\"\n);",
           "sourceFile": "policies/tools/places_travel_time.cedar",
           "validationMode": "IGNORE_ALL_FINDINGS",
           "enforcementMode": "ACTIVE",
@@ -293,7 +246,7 @@
         },
         {
           "name": "AllowTvmazeGetCast",
-          "statement": "// Permits TvmazeMcpTarget -> get_cast through the gateway.\n// One statement per file: CreatePolicy accepts exactly one.\n\npermit(\n  principal is AgentCore::OAuthUser,\n  action == AgentCore::Action::\"TvmazeMcpTarget___get_cast\",\n  resource == AgentCore::Gateway::\"arn:aws:bedrock-agentcore:us-west-2:123456789012:gateway/myproject-my-gateway-example01\"\n);",
+          "statement": "// Permits TvmazeMcpTarget -> get_cast through the gateway.\n// One statement per file: CreatePolicy accepts exactly one.\n\npermit(\n  principal is AgentCore::OAuthUser,\n  action == AgentCore::Action::\"TvmazeMcpTarget___get_cast\",\n  resource == AgentCore::Gateway::\"arn:aws:bedrock-agentcore:${AWS_REGION}:${AWS_ACCOUNT_ID}:gateway/${GATEWAY_ID}\"\n);",
           "sourceFile": "policies/tools/tvmaze_get_cast.cedar",
           "validationMode": "IGNORE_ALL_FINDINGS",
           "enforcementMode": "ACTIVE",
@@ -301,7 +254,7 @@
         },
         {
           "name": "AllowTvmazeGetEpisodes",
-          "statement": "// Permits TvmazeMcpTarget -> get_episodes through the gateway.\n// One statement per file: CreatePolicy accepts exactly one.\n\npermit(\n  principal is AgentCore::OAuthUser,\n  action == AgentCore::Action::\"TvmazeMcpTarget___get_episodes\",\n  resource == AgentCore::Gateway::\"arn:aws:bedrock-agentcore:us-west-2:123456789012:gateway/myproject-my-gateway-example01\"\n);",
+          "statement": "// Permits TvmazeMcpTarget -> get_episodes through the gateway.\n// One statement per file: CreatePolicy accepts exactly one.\n\npermit(\n  principal is AgentCore::OAuthUser,\n  action == AgentCore::Action::\"TvmazeMcpTarget___get_episodes\",\n  resource == AgentCore::Gateway::\"arn:aws:bedrock-agentcore:${AWS_REGION}:${AWS_ACCOUNT_ID}:gateway/${GATEWAY_ID}\"\n);",
           "sourceFile": "policies/tools/tvmaze_get_episodes.cedar",
           "validationMode": "IGNORE_ALL_FINDINGS",
           "enforcementMode": "ACTIVE",
@@ -309,7 +262,7 @@
         },
         {
           "name": "AllowTvmazeGetSchedule",
-          "statement": "// Permits TvmazeMcpTarget -> get_schedule through the gateway.\n// One statement per file: CreatePolicy accepts exactly one.\n\npermit(\n  principal is AgentCore::OAuthUser,\n  action == AgentCore::Action::\"TvmazeMcpTarget___get_schedule\",\n  resource == AgentCore::Gateway::\"arn:aws:bedrock-agentcore:us-west-2:123456789012:gateway/myproject-my-gateway-example01\"\n);",
+          "statement": "// Permits TvmazeMcpTarget -> get_schedule through the gateway.\n// One statement per file: CreatePolicy accepts exactly one.\n\npermit(\n  principal is AgentCore::OAuthUser,\n  action == AgentCore::Action::\"TvmazeMcpTarget___get_schedule\",\n  resource == AgentCore::Gateway::\"arn:aws:bedrock-agentcore:${AWS_REGION}:${AWS_ACCOUNT_ID}:gateway/${GATEWAY_ID}\"\n);",
           "sourceFile": "policies/tools/tvmaze_get_schedule.cedar",
           "validationMode": "IGNORE_ALL_FINDINGS",
           "enforcementMode": "ACTIVE",
@@ -317,7 +270,7 @@
         },
         {
           "name": "AllowTvmazeSearchShows",
-          "statement": "// Permits TvmazeMcpTarget -> search_shows through the gateway.\n// One statement per file: CreatePolicy accepts exactly one.\n\npermit(\n  principal is AgentCore::OAuthUser,\n  action == AgentCore::Action::\"TvmazeMcpTarget___search_shows\",\n  resource == AgentCore::Gateway::\"arn:aws:bedrock-agentcore:us-west-2:123456789012:gateway/myproject-my-gateway-example01\"\n);",
+          "statement": "// Permits TvmazeMcpTarget -> search_shows through the gateway.\n// One statement per file: CreatePolicy accepts exactly one.\n\npermit(\n  principal is AgentCore::OAuthUser,\n  action == AgentCore::Action::\"TvmazeMcpTarget___search_shows\",\n  resource == AgentCore::Gateway::\"arn:aws:bedrock-agentcore:${AWS_REGION}:${AWS_ACCOUNT_ID}:gateway/${GATEWAY_ID}\"\n);",
           "sourceFile": "policies/tools/tvmaze_search_shows.cedar",
           "validationMode": "IGNORE_ALL_FINDINGS",
           "enforcementMode": "ACTIVE",
@@ -325,7 +278,7 @@
         },
         {
           "name": "ForbidWideRadius",
-          "statement": "// ShowRunner - argument-level bounds (Cedar)\n//\n// ASCII only: the CLI read a previous file as cp1252 and mojibaked its em-dashes\n// into the manifest snapshot.\n//\n// policies/tools/*.cedar answer \"may this caller run this tool at all\". This rule\n// narrows *how* an approved tool may be called, by testing call arguments exposed\n// as `context.input.<argName>` - keys come from the tool's own input schema.\n//\n// `forbid` overrides `permit`, so this clips a permit without replacing it.\n//\n// NOTE on naming: in AgentCore, \"guardrails\" means the Bedrock content-filter\n// construct (`when guardrails { BedrockGuardrails::... }`) for prompt-injection\n// and sensitive-info screening. That is a separate feature; this is a plain\n// argument condition.\n\n// A huge radius turns one call into an expensive Overpass query, and the public\n// OSM endpoints are rate-limited (CLAUDE.md hard rule #5). find_nearby defaults to\n// 2000 m; 5000 m is a generous ceiling for planning a night out.\nforbid(\n  principal,\n  action == AgentCore::Action::\"PlacesMcpTarget___find_nearby\",\n  resource == AgentCore::Gateway::\"arn:aws:bedrock-agentcore:us-west-2:123456789012:gateway/myproject-my-gateway-example01\"\n) when {\n  context.input has radius && context.input.radius > 5000\n};",
+          "statement": "// ShowRunner - argument-level bounds (Cedar)\n//\n// ASCII only: the CLI read a previous file as cp1252 and mojibaked its em-dashes\n// into the manifest snapshot.\n//\n// policies/tools/*.cedar answer \"may this caller run this tool at all\". This rule\n// narrows *how* an approved tool may be called, by testing call arguments exposed\n// as `context.input.<argName>` - keys come from the tool's own input schema.\n//\n// `forbid` overrides `permit`, so this clips a permit without replacing it.\n//\n// NOTE on naming: in AgentCore, \"guardrails\" means the Bedrock content-filter\n// construct (`when guardrails { BedrockGuardrails::... }`) for prompt-injection\n// and sensitive-info screening. That is a separate feature; this is a plain\n// argument condition.\n\n// A huge radius turns one call into an expensive Overpass query, and the public\n// OSM endpoints are rate-limited (CLAUDE.md hard rule #5). find_nearby defaults to\n// 2000 m; 5000 m is a generous ceiling for planning a night out.\nforbid(\n  principal,\n  action == AgentCore::Action::\"PlacesMcpTarget___find_nearby\",\n  resource == AgentCore::Gateway::\"arn:aws:bedrock-agentcore:${AWS_REGION}:${AWS_ACCOUNT_ID}:gateway/${GATEWAY_ID}\"\n) when {\n  context.input has radius && context.input.radius > 5000\n};",
           "sourceFile": "policies/argument_bounds.cedar",
           "validationMode": "IGNORE_ALL_FINDINGS",
           "enforcementMode": "ACTIVE",

@@ -48,6 +48,19 @@ uv run python -m agents.orchestrator.agent   # serve the orchestrator locally (:
 
 Copy `.env.example` to `.env` if you're wiring up the AgentCore layer; the core demo needs no secrets.
 
+**Deploying to your own AWS account** needs one extra step, because this repo tracks no deployment
+identifiers. `agentcore/agentcore.json` is generated from `agentcore/agentcore.template.json`, and
+the real account / Cognito / gateway ids live only in gitignored `agentcore/local-config.json`:
+
+```bash
+cp agentcore/local-config.example.json agentcore/local-config.json   # then fill in your ids
+uv run scripts/config.py render                                      # writes agentcore/agentcore.json
+```
+
+Until you run `render` there is no manifest, so every `agentcore` command reports *"No agentcore
+project found."* See [`scripts/config.py`](scripts/config.py) for the full loop (and run `scrub`
+before committing, so CLI edits reach the template).
+
 **Calling the deployed agent** is a different path: the runtime accepts only a Cognito access
 token, so you create a user in the pool, mint a token, and pass it explicitly — a bare
 `agentcore invoke` is signed with IAM and gets rejected.
@@ -123,9 +136,11 @@ accident. [`policies/argument_bounds.cedar`](policies/argument_bounds.cedar) goe
 forbids calls whose *arguments* are out of bounds (a `find_nearby` radius over 5 km).
 
 Because the caller's JWT rides along per request, these policies evaluate against the real
-`OAuthUser` — not a service identity. The engine currently runs in `LOG_ONLY`: decisions are
-traced, not enforced, which is the recommended way to roll policies out before flipping to
-`ENFORCE`. Details and the verified-the-hard-way notes are in [`policies/README.md`](policies/README.md).
+`OAuthUser` — not a service identity. The engine runs in `ENFORCE`: an unpermitted tool call is
+refused, not just traced. Policies were rolled out in `LOG_ONLY` first and flipped once the traces
+were clean — the recommended order, since engine mode overrides per-policy `enforcementMode` and a
+`LOG_ONLY` engine enforces nothing. Details and the verified-the-hard-way notes are in
+[`policies/README.md`](policies/README.md).
 
 ## Observability
 
@@ -178,7 +193,7 @@ showrunner/
 - **TVmaze is free for non-commercial use only.**
 - **Identity's role here is memory-scoping, not API-key protection.** Because the APIs are keyless, the inbound Cognito JWT exists so long-term memory is tied to a real user (anti-impersonation via the `sub` claim), not to guard a secret.
 - **LangChain doesn't speak MCP natively** — the LangGraph agent bridges via `langchain-mcp-adapters`.
-- **Cedar runs in `LOG_ONLY`.** Policy decisions are traced, not enforced — so an unpermitted tool is still executed while being logged. Denial isn't real until the engine flips to `ENFORCE`.
+- **Cedar is default-deny, so a new gateway tool without a permit is refused.** That is the intended behaviour, but it means adding a tool and forgetting `policies/tools/` fails at call time, not at deploy time.
 - **The eval harness is scaffolding.** `evals/` has the structure and the planned cases as comments; validating the deployed stack is still the manual sequence in [`BUILD.md`](BUILD.md).
 - **No CI yet.** `uv run pytest` and `ruff check .` run locally (and on every edit via the hooks in `.claude/`), but nothing enforces them on push.
 - **Long turns outlive the sync invocation window (~100s).** A cold full movie-night plan can complete server-side after the client has already disconnected; streaming or async invocation is the fix.

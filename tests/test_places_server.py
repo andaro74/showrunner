@@ -96,3 +96,22 @@ async def test_find_nearby_caches(mock_overpass):
     await server.mcp.call_tool("find_nearby", args)
     await server.mcp.call_tool("find_nearby", args)
     assert mock_overpass["count"] == 1  # second identical call served from cache
+
+
+@pytest.mark.parametrize(
+    "amenity",
+    [
+        # closes the clause and appends its own, defeating the Cedar radius cap
+        'cinema"](around:50000,40.7,-74.0);nwr["amenity"="restaurant',
+        "cinema\n",  # trailing newline: `$` would have allowed this, fullmatch does not
+        "Cinema",  # OSM amenity values are lowercase
+        "",
+    ],
+)
+async def test_find_nearby_rejects_injected_amenity(mock_overpass, amenity):
+    """A crafted `amenity` is refused, not interpolated into the Overpass QL."""
+    with pytest.raises(Exception):
+        await server.mcp.call_tool(
+            "find_nearby", {"lat": 40.7128, "lon": -74.0060, "amenity": amenity}
+        )
+    assert mock_overpass["count"] == 0  # nothing reached Overpass

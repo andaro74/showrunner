@@ -6,6 +6,7 @@ One responsibility: build the Overpass QL, POST it, parse `elements[]` into type
 
 from __future__ import annotations
 
+import re
 from collections.abc import Sequence
 from typing import Any, TypedDict
 
@@ -14,6 +15,14 @@ import httpx
 from mcp_servers.places.cache import ResponseCache, build_client, user_agent
 
 BASE_URL = "https://overpass-api.de"
+
+# OSM amenity values are lowercase keywords. The QL below is built by string
+# interpolation, so anything else is rejected rather than embedded: `amenity`
+# originates in natural-language user input, and a crafted value could close the
+# clause and append its own — including a wider `around:` radius, which would
+# slip past the Cedar radius cap that only inspects the radius *argument*.
+# fullmatch (not `$`) on purpose: `$` also matches before a trailing newline.
+_AMENITY_RE = re.compile(r"[a-z][a-z0-9_]*")
 
 # Convenience aliases the server can expand into multiple OSM amenity tags.
 AMENITY_ALIASES: dict[str, tuple[str, ...]] = {
@@ -30,6 +39,13 @@ class Place(TypedDict):
     lat: float | None
     lon: float | None
     opening_hours: str | None
+
+
+def _checked_amenity(value: str) -> str:
+    """Return `value` if it is a well-formed OSM amenity, else raise."""
+    if not _AMENITY_RE.fullmatch(value):
+        raise ValueError(f"invalid OSM amenity value: {value!r}")
+    return value
 
 
 def _coords(element: dict[str, Any]) -> tuple[float | None, float | None]:
@@ -78,7 +94,8 @@ class OverpassClient:
     @staticmethod
     def _build_ql(lat: float, lon: float, amenities: Sequence[str], radius: int) -> str:
         clauses = "\n".join(
-            f'  nwr["amenity"="{a}"](around:{radius},{lat},{lon});' for a in amenities
+            f'  nwr["amenity"="{_checked_amenity(a)}"](around:{radius},{lat},{lon});'
+            for a in amenities
         )
         return f"[out:json][timeout:25];\n(\n{clauses}\n);\nout center tags;"
 

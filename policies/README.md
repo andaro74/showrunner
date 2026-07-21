@@ -39,6 +39,15 @@ denied, just never seen. Two paths skip it:
 Keep these files ASCII-only: `add policy` snapshots the file into the manifest and
 has read UTF-8 comments as cp1252, mojibaking them.
 
+**The gateway ARN in these files is templated.** Each permit names the resource as
+`arn:aws:bedrock-agentcore:${AWS_REGION}:${AWS_ACCOUNT_ID}:gateway/${GATEWAY_ID}` so the
+tracked copy carries no deployment identifiers. `uv run scripts/config.py render`
+substitutes the real values into `agentcore/.rendered/policies/` and inlines the result
+into the generated manifest — these files stay the source of truth for policy *text*, so
+edit them here, never the rendered copies. A permit still needs the **real** deployed
+gateway ARN to validate, which `render` supplies; that is why the Cedar schema can only be
+generated once the gateway exists.
+
 ## Applying them (the sequence that actually deployed)
 
 Policies validate against a Cedar schema that the policy engine generates from the
@@ -72,6 +81,11 @@ policy would break before it breaks it. Flip to `ENFORCE` once the traces are cl
 Engine mode wins over per-policy `enforcementMode`: a `LOG_ONLY` engine enforces
 nothing, even for `ACTIVE` policies. Note the API default is `ENFORCE`, so
 `LOG_ONLY` must be set explicitly.
+
+**Current state: `ENFORCE`** (`agentcore.json` → gateway `policyEngineConfiguration.mode`).
+Denials are real. Because Cedar is default-deny, a gateway tool with no permit in
+`policies/tools/` now *fails at call time* — adding a tool without its permit is a
+runtime break, not a warning.
 
 **`validationMode` must be `IGNORE_ALL_FINDINGS` for every policy here.** The
 default `FAIL_ON_ANY_FINDINGS` includes semantic lint that has no passing shape for

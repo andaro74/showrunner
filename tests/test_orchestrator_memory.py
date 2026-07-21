@@ -111,6 +111,23 @@ def test_malformed_token_falls_back():
     assert resolve_actor_id({}, context) == memory_config.DEFAULT_ACTOR_ID
 
 
+def test_token_without_sub_ignores_payload_actor_id():
+    """A token present but lacking `sub` must NOT fall back to the body's actor_id.
+
+    Otherwise a caller pairs a parseable sub-less token with a victim's id and
+    reads their namespace.
+    """
+    context = type(
+        "Ctx", (), {"request_headers": {"Authorization": f"Bearer {_jwt({'scope': 'x'})}"}}
+    )
+    assert resolve_actor_id({"actor_id": "victim-sub"}, context) == memory_config.DEFAULT_ACTOR_ID
+
+
+def test_malformed_token_ignores_payload_actor_id():
+    context = type("Ctx", (), {"request_headers": {"Authorization": "Bearer not-a-jwt"}})
+    assert resolve_actor_id({"actor_id": "victim-sub"}, context) == memory_config.DEFAULT_ACTOR_ID
+
+
 # --- recall / remember ----------------------------------------------------
 
 

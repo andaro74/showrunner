@@ -382,11 +382,14 @@ gateway's tool definitions — you need the real ARN and the real tool names:
 bash scripts/create_cognito_m2m.sh      # gateway->runtime client_credentials client
 bash scripts/wire_gateway_targets.sh    # mcp-server targets + outbound OAuth credential
 agentcore deploy                        # gateway has an ARN; tools now enumerated
-# read the ACTION NAMES from a live tools/list (below), then substitute the real
-# gateway ARN into policies/**/*.cedar
+# read the ACTION NAMES from a live tools/list (below). The gateway ARN is NOT pasted
+# into the .cedar files -- they hold ${AWS_REGION}/${AWS_ACCOUNT_ID}/${GATEWAY_ID}, and
+# `scrub` captures the new gateway id into local-config.json, `render` substitutes it:
+uv run scripts/config.py scrub          # gateway id -> agentcore/local-config.json
+uv run scripts/config.py render         # -> agentcore/.rendered/policies/**/*.cedar
 agentcore add policy-engine --name ShowRunnerPolicies
 # attachment lives on the GATEWAY: policyEngineConfiguration {policyEngineName, mode: LOG_ONLY}
-for f in policies/tools/*.cedar; do
+for f in agentcore/.rendered/policies/tools/*.cedar; do   # rendered, not templated
   agentcore add policy --engine ShowRunnerPolicies --name "Allow$(basename "$f" .cedar)" \
     --source "$f" --validation-mode IGNORE_ALL_FINDINGS
 done
@@ -465,10 +468,12 @@ Observed responses, which is the fastest way to tell *which* thing is wrong:
 That 403 on the M2M token is the design working: the two hops deliberately use different
 credentials, and that separation is exactly what closes the direct-runtime bypass.
 
-Two limits worth stating plainly. Under `LOG_ONLY` this exercises **authentication only** — an
-unpermitted tool still succeeds while being traced, so denial isn't testable until you flip to
-`ENFORCE`. And delete the demo user afterwards (`admin-delete-user`); left behind, it is a
-standing credential against a live gateway.
+One caveat worth stating plainly: delete the demo user afterwards (`admin-delete-user`). Left
+behind, it is a standing credential against a live gateway.
+
+Note that authorization is only testable once the engine is in `ENFORCE` (it is now — see
+[`policies/README.md`](policies/README.md)). Under `LOG_ONLY` this sequence exercises
+**authentication only**: an unpermitted tool still succeeds while being traced.
 
 ### Deploying the orchestrator (and why the specialists don't get runtimes)
 

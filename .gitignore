@@ -217,8 +217,11 @@ __marimo__/
 # Streamlit
 .streamlit/secrets.toml
 
-# AgentCore deployment targets — account ID + region, specific to each developer.
-# Regenerate locally; not shared via git.
+# AgentCore deployment state — account ID, region, live endpoints and role names.
+# Specific to each developer's deployment; regenerate locally, never shared via git.
 agentcore/aws-targets.json
+agentcore/.cli/deployed-state.json
 
-!deployed-state.json
+# Node / CDK, in case either ever runs outside agentcore/cdk/ (which has its own).
+node_modules/
+cdk.out/

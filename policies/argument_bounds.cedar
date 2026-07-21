@@ -20,7 +20,7 @@
 forbid(
   principal,
   action == AgentCore::Action::"PlacesMcpTarget___find_nearby",
-  resource == AgentCore::Gateway::"arn:aws:bedrock-agentcore:us-west-2:123456789012:gateway/myproject-my-gateway-example01"
+  resource == AgentCore::Gateway::"arn:aws:bedrock-agentcore:${AWS_REGION}:${AWS_ACCOUNT_ID}:gateway/${GATEWAY_ID}"
 ) when {
   context.input has radius && context.input.radius > 5000
 };

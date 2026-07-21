@@ -9,18 +9,38 @@ uv run <script>               # run an agent / script in the project env
 uv run pytest                 # run all tests
 uv run pytest tests/test_x.py # run one test file
 ruff check .                  # lint
+uv run scripts/config.py render   # generate agentcore/agentcore.json (do this first)
+uv run scripts/config.py scrub    # capture CLI edits back into the template (before commit)
 agentcore dev                 # run an agent locally with a test endpoint
 agentcore deploy              # deploy to AgentCore runtime (CDK)
 ```
 
 Run tests after every change to `mcp_servers/` or `agents/`. A change isn't done until its test is green.
 
+**`agentcore/agentcore.json` is generated — render before any `agentcore` command.** The tracked
+source of truth is `agentcore/agentcore.template.json` (placeholders) plus `policies/**/*.cedar`;
+the real account / pool / client / gateway / runtime ids live only in gitignored
+`agentcore/local-config.json`. A fresh clone has no manifest until `render`, so every CLI command
+fails with *"No agentcore project found."* until you run it.
+
+**Cognito client secrets cannot be rotated in place** — there is no API. A replacement app client
+gets a new id, which `allowedClients` references, so rotation is a config change plus a deploy:
+`scripts/rotate_cognito_secrets.sh` (dry run by default, `--apply` to execute). It creates the
+replacement, updates `.env` + `local-config.json`, refreshes the `GatewayToRuntimes` credential,
+and re-renders. The old client stays live until a second explicit `--retire --apply`, so a failed
+deploy never locks you out.
+
+**The CLI writes to the generated file, so `scrub` before you commit.** `agentcore add …` mutates
+`agentcore/agentcore.json`; without a `scrub` those edits never reach the template and are lost on
+the next `render`. `scrub` refuses to write a template that would not render back byte-for-byte.
+`render` is the only thing that may write real ids to disk, and everything it writes is gitignored.
+
 `agentcore` is a separate Node CLI (not the `bedrock-agentcore` Python SDK). Local dev and the
 tests don't need it — `BedrockAgentCoreApp` runs standalone, and the MCP servers run over stdio.
 
 Every `agentcore` command except `create` needs a project manifest (`agentcore/agentcore.json`);
-without one you get *"No agentcore project found."* That manifest now lives in this repo at
-`agentcore/`, so run `agentcore add …` / `validate` / `deploy` from the repo root.
+without one you get *"No agentcore project found."* That manifest lives at `agentcore/` (generated
+— see above), so run `agentcore add …` / `validate` / `deploy` from the repo root.
 
 Don't re-run `agentcore create` here — it scaffolds a **new child directory** with its own
 `git init` rather than initializing in place (that's why `agentcore/` was generated elsewhere
@@ -41,6 +61,13 @@ returns nothing.
 explicitly — the CDK defaults a *missing* key to true, but `add agent` writes false on MCP
 runtimes) AND `aws-opentelemetry-distro` in deps. The OTEL wrapper without the ADOT distro runs
 clean and exports nothing — an empty `spans` log stream is the tell.
+
+**Packaging ignores `.gitignore`:** every runtime is `codeLocation: "./"`, and `deploy`/`package`
+copy the repo root *verbatim* into `agentcore/.cache/<Runtime>/staging/` — including `.env`. The
+CLI has no exclusion flag and honours neither `.gitignore` nor `.dockerignore`, so whatever sits
+in `.env` at deploy time ships inside the container image. Nothing in `agents/` or `mcp_servers/`
+reads `.env` at runtime (config arrives as injected env vars), so keep deploy-time secrets out of
+it, and treat any secret that was in `.env` during a past deploy as needing rotation.
 
 ## Architecture — three layers (see PROJECT.md for detail)
 

@@ -1,0 +1,24 @@
+{
+  "_comment": [
+    "Copy to local-config.json (gitignored) and fill in your own values, then run",
+    "`uv run scripts/config.py render` to generate agentcore/agentcore.json.",
+    "",
+    "AWS_ACCOUNT_ID / AWS_REGION / the two Cognito values you know up front:",
+    "scripts/create_cognito.sh and create_cognito_m2m.sh print the pool and client ids.",
+    "",
+    "GATEWAY_ID and the RUNTIME_ID_* entries only exist AFTER those resources are",
+    "deployed -- AWS assigns the random suffix. On a first build you leave them out,",
+    "let the CLI populate the manifest as each resource comes up, then run",
+    "`uv run scripts/config.py scrub` to capture the real ids back into local-config.json.",
+    "",
+    "123456789012 below is AWS's reserved documentation account, not a real one."
+  ],
+  "AWS_ACCOUNT_ID": "123456789012",
+  "AWS_REGION": "us-west-2",
+  "COGNITO_USER_POOL_ID": "us-west-2_EXAMPLE01",
+  "COGNITO_USER_CLIENT_ID": "exampleuserclientid0000000",
+  "COGNITO_M2M_CLIENT_ID": "examplem2mclientid00000000",
+  "GATEWAY_ID": "myproject-my-gateway-exampleid",
+  "RUNTIME_ID_TVMAZEMCP": "myProject_TvmazeMcp-EXAMPLE01",
+  "RUNTIME_ID_PLACESMCP": "myProject_PlacesMcp-EXAMPLE02"
+}

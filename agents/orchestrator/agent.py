@@ -85,14 +85,17 @@ def resolve_actor_id(payload: dict, context: object | None = None) -> str:
 
     The JWT is *verified upstream* by the gateway's CUSTOM_JWT authorizer, so we
     only decode the claims here — never trust this token without that authorizer.
-    Falls back to an explicit payload actor_id, then to a local-dev default.
+
+    Identity comes from the token *alone* whenever one is present: a token that
+    carries no usable `sub` falls back to the anonymous default, never to the
+    payload's actor_id. Otherwise a caller could send a parseable token without a
+    `sub` plus someone else's id in the body and read their memory namespace.
+    The payload actor_id is honoured only for tokenless local dev.
     """
     headers = getattr(context, "request_headers", None) or {}
     token = _bearer_token(headers)
     if token:
-        subject = _jwt_subject(token)
-        if subject:
-            return subject
+        return _jwt_subject(token) or memory_config.DEFAULT_ACTOR_ID
     return payload.get("actor_id") or memory_config.DEFAULT_ACTOR_ID
 
 

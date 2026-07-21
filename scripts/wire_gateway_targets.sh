@@ -35,7 +35,10 @@ ENV_FILE=".env"
 command -v agentcore >/dev/null || { echo "agentcore CLI not found" >&2; exit 1; }
 [ -f "$ENV_FILE" ] || { echo "$ENV_FILE not found" >&2; exit 1; }
 
-read_env() { grep "^$1=" "$ENV_FILE" | head -1 | cut -d= -f2- | tr -d '"'; }
+# `|| true` keeps a missing key from aborting the script: under `set -o pipefail`
+# grep's exit 1 fails the pipeline and `set -e` kills us before the check below
+# can report which value is missing.
+read_env() { grep "^$1=" "$ENV_FILE" 2>/dev/null | head -1 | cut -d= -f2- | tr -d '"' || true; }
 
 M2M_ID=$(read_env COGNITO_M2M_CLIENT_ID)
 M2M_SECRET=$(read_env COGNITO_M2M_CLIENT_SECRET)
