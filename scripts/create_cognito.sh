@@ -13,6 +13,11 @@
 
 set -euo pipefail
 
+# Always operate on the repo root's .env. Without this, running the script from
+# scripts/ writes a second .env there (upsert_env touches it) holding a real
+# client secret, while the real .env goes unchanged.
+cd "$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
+
 REGION="${1:-${AWS_REGION:-us-west-2}}"
 POOL_NAME="showrunner-users"
 CLIENT_NAME="showrunner-agent"

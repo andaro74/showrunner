@@ -27,6 +27,10 @@
 
 set -euo pipefail
 
+# Repo root: .env lives there, and every `agentcore` command needs the manifest
+# at agentcore/agentcore.json or it reports "No agentcore project found."
+cd "$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
+
 REGION="${AWS_REGION:-us-west-2}"
 GATEWAY="showrunner-gateway"
 CREDENTIAL="GatewayToRuntimes"

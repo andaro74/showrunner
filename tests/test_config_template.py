@@ -15,9 +15,13 @@ sys.path.insert(0, str(Path(__file__).resolve().parent.parent / "scripts"))
 
 import config  # noqa: E402
 
+# Deliberately fake — never the real deployment's values. Fixtures live in a
+# tracked file, so real ids here would be exactly the leak this module prevents
+# (test_no_tracked_file_contains_a_real_identifier catches the mistake).
+# 123456789012 is AWS's reserved documentation account.
 ACCOUNT = "123456789012"
-REGION = "us-west-2"
-POOL = f"{REGION}_SlKdFD1Jn"
+REGION = "us-west-2"  # a public region name, and exempt from the leak scan
+POOL = f"{REGION}_EXAMPLE01"
 USER_CLIENT = "exampleuserclientid0000001"
 M2M_CLIENT = "examplem2mclientid00000002"
 GATEWAY = "myproject-my-gateway-example01"
@@ -113,7 +117,7 @@ def test_detects_runtime_ids_by_name():
     assert values["RUNTIME_ID_TVMAZEMCP"] == "myProject_TvmazeMcp-EXAMPLE01"
 
     templated = config.to_template(json.dumps(manifest), values)
-    assert "IHSHV12CKi" not in templated
+    assert "myProject_TvmazeMcp-EXAMPLE01" not in templated
     assert "${RUNTIME_ID_TVMAZEMCP}" in templated
 
 
@@ -150,7 +154,7 @@ def test_region_inside_pool_id_is_not_corrupted():
     """`us-west-2` is a substring of `us-west-2_EXAMPLE01`.
 
     Substituting the region first would rewrite the pool id to
-    `${AWS_REGION}_SlKdFD1Jn` and lose it — hence longest-value-first.
+    `${AWS_REGION}_EXAMPLE01` and lose it — hence longest-value-first.
     """
     templated = config.to_template(json.dumps({"pool": POOL}), EXPECTED)
     assert "${COGNITO_USER_POOL_ID}" in templated

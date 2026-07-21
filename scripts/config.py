@@ -112,7 +112,7 @@ def detect_values(manifest: dict) -> dict[str, str]:
 def _runtime_ids(blob: str) -> dict[str, str]:
     """Map each runtime id to a `RUNTIME_ID_<NAME>` placeholder.
 
-    `myProject_TvmazeMcp-EXAMPLE01` -> `RUNTIME_ID_TVMAZEMCP`. Keyed
+    `myProject_TvmazeMcp-A1B2C3D4E5` -> `RUNTIME_ID_TVMAZEMCP`. Keyed
     on the runtime's own name so the placeholder stays stable across redeploys,
     which change only the AWS-assigned suffix.
     """

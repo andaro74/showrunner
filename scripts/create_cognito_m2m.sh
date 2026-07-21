@@ -20,6 +20,9 @@
 
 set -euo pipefail
 
+# Always operate on the repo root's .env — see create_cognito.sh for why.
+cd "$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
+
 REGION="${1:-${AWS_REGION:-us-west-2}}"
 POOL_NAME="showrunner-users"
 M2M_CLIENT_NAME="showrunner-gateway-m2m"

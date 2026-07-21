@@ -58,6 +58,12 @@ done
 # Neither selected means both.
 if [ "$DO_USER" -eq 0 ] && [ "$DO_M2M" -eq 0 ]; then DO_USER=1; DO_M2M=1; fi
 
+# Run from the repo root regardless of where the caller invoked us. Without this,
+# `.env` resolves against the caller's cwd: running from scripts/ silently creates
+# a SECOND .env there (upsert_env touches it), writes real secrets into it, and
+# leaves the real one untouched.
+cd "$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
+
 ENV_FILE=".env"
 LOCAL_CONFIG="agentcore/local-config.json"
 CREDENTIAL="GatewayToRuntimes"
