@@ -2,7 +2,7 @@
 
 A movie-night agent: it figures out **what's on tonight**, **where you can watch it near you**, and **whether you have time to grab food first** — then plans the evening around it.
 
-But the movie app is the vehicle, not the point. ShowRunner is a compact, runnable example of a **production-shaped agent architecture**: an orchestrator composing two framework specialists (Strands for shows, LangGraph for places), each owning one keyless MCP server, wired into Amazon Bedrock AgentCore for memory, identity, tool routing, and evaluation.
+But the movie app is the vehicle, not the point. ShowRunner is a compact, runnable example of a **production-shaped agent architecture**: an orchestrator composing two framework specialists (Strands for shows, LangGraph for places), each owning one keyless MCP server, wired into Amazon Bedrock AgentCore for memory, identity, tool routing, authorization, and tracing.
 
 Everything here is **free and keyless** — clone it and run it, no API signups, no billing.
 
@@ -16,7 +16,7 @@ Most "AI agent" demos stop at a single framework calling a single API. ShowRunne
 
 - **MCP portability** — the same server code is consumed unchanged by two different frameworks: tvmaze through Strands, places through LangGraph. Which framework serves which server is interchangeable — the tools don't move. That's the whole promise of MCP, made concrete, and it's what makes the multi-agent split free.
 - **Multi-agent composition** — an orchestrator routes each sub-question to the right specialist (agents-as-tools) and owns the user-facing concerns: entrypoint, memory, identity.
-- **Production concerns** — memory across sessions, per-user identity, managed tool routing, and evaluation, added one layer at a time instead of hand-rolled.
+- **Production concerns** — memory across sessions, per-user identity, managed tool routing, default-deny tool authorization, and tracing, added one layer at a time instead of hand-rolled.
 
 It was also built entirely through [Claude Code](https://www.claude.com/product/claude-code)'s own workflow — plan mode, a lean `CLAUDE.md`, verified commits, subagents, and hooks — so the repo doubles as a worked example of *how* to build something like this. See [`BUILD.md`](BUILD.md).
 
@@ -26,7 +26,7 @@ It was also built entirely through [Claude Code](https://www.claude.com/product/
 |-------|------|----------|
 | **MCP servers** | `tvmaze` (what's on) · `places` (cinemas, restaurants, travel time via OpenStreetMap) | ✅ |
 | **Agents** | `orchestrator` (central point) · `strands` (show specialist) · `langgraph` (places specialist) | — |
-| **AgentCore** | runtime · memory · identity · gateway · evaluation · observability | — |
+| **AgentCore** | runtime · memory · identity · gateway · authorization (Cedar) · observability | — |
 
 Full spec: [`PROJECT.md`](PROJECT.md).
 
@@ -47,6 +47,17 @@ uv run python -m agents.orchestrator.agent   # serve the orchestrator locally (:
 ```
 
 Copy `.env.example` to `.env` if you're wiring up the AgentCore layer; the core demo needs no secrets.
+
+**Calling the deployed agent** is a different path: the runtime accepts only a Cognito access
+token, so you create a user in the pool, mint a token, and pass it explicitly — a bare
+`agentcore invoke` is signed with IAM and gets rejected.
+
+```bash
+agentcore invoke --runtime ShowRunner --bearer-token "$TOKEN" --prompt "What should I watch tonight?"
+```
+
+The full recipe — creating the user, computing `SECRET_HASH`, minting the token — is in
+[`BUILD.md`](BUILD.md#invoking-the-deployed-showrunner-agent).
 
 ## The two MCP servers
 
@@ -101,6 +112,21 @@ remembered preferences from leaking into another user's movie night.
 Memory is optional: with no `AGENTCORE_MEMORY_ID` set, the agent runs statelessly (that's how the
 tests run — no AWS required).
 
+## Authorization: what a verified user may actually do
+
+Identity answers *who is calling*; Cedar answers *what they may do*. The Gateway runs a policy
+engine that is **default-deny**, so each of the seven tools needs its own permit in
+[`policies/tools/`](policies/tools/) — one Cedar statement per file, named for the deployed
+gateway's real action (`TvmazeMcpTarget___search_shows` and friends). A tool added without a
+permit is simply refused, which is the point: new capability doesn't become reachable by
+accident. [`policies/argument_bounds.cedar`](policies/argument_bounds.cedar) goes further and
+forbids calls whose *arguments* are out of bounds (a `find_nearby` radius over 5 km).
+
+Because the caller's JWT rides along per request, these policies evaluate against the real
+`OAuthUser` — not a service identity. The engine currently runs in `LOG_ONLY`: decisions are
+traced, not enforced, which is the recommended way to roll policies out before flipping to
+`ENFORCE`. Details and the verified-the-hard-way notes are in [`policies/README.md`](policies/README.md).
+
 ## Observability
 
 All three runtimes are OTEL-instrumented: the CDK wraps each entrypoint in
@@ -123,9 +149,9 @@ The repo grows one verified, single-purpose commit at a time — so `git log` *i
 4. Strands agent — first end-to-end "plan my night"
 5. LangGraph variant — same servers, second framework, no rewrites
 6. Skill + hooks — guardrails become automatic
-7. AgentCore memory → identity → evaluation (one commit each)
+7. AgentCore memory → identity → gateway → Cedar policies → observability (one commit each)
 8. Specialist split + orchestrator — agents-as-tools; entrypoint/memory/identity move to the center
-9. CI + docs
+9. Deploy: three runtimes behind the Gateway, invoked with a real user's token
 
 The step-by-step method, with the exact prompts used at each stage, is in [`BUILD.md`](BUILD.md).
 
@@ -135,13 +161,15 @@ The step-by-step method, with the exact prompts used at each stage, is in [`BUIL
 showrunner/
 ├── PROJECT.md · CLAUDE.md · BUILD.md    # spec, agent memory, build guide
 ├── serve_orchestrator.py                # AgentCore entrypoint (root on purpose — see file)
-├── mcp_servers/tvmaze · places          # keyless, framework-agnostic
+├── mcp_servers/tvmaze · places          # keyless, framework-agnostic (+ serve_*.py entry files)
 ├── agents/orchestrator · strands · langgraph   # central point + two framework specialists
 ├── agentcore/                           # AgentCore manifest + CDK (flat resource model)
-├── evals/                               # our LLM-as-judge harness
+├── policies/                            # Cedar permits — one file per gateway tool
+├── scripts/                             # Cognito pool + M2M client + gateway wiring (deploy prereqs)
+├── evals/                               # LLM-as-judge harness — scaffolded, cases not written yet
 ├── tests/                               # a test per tool
-├── .claude/                             # skills, subagents, hooks (how it's built)
-└── .github/workflows/ci.yml             # pytest + ruff + headless review + evals
+├── docs/                                # architecture diagram
+└── .claude/                             # skills, hooks (how it's built)
 ```
 
 ## Caveats (the honest bits)
@@ -150,6 +178,10 @@ showrunner/
 - **TVmaze is free for non-commercial use only.**
 - **Identity's role here is memory-scoping, not API-key protection.** Because the APIs are keyless, the inbound Cognito JWT exists so long-term memory is tied to a real user (anti-impersonation via the `sub` claim), not to guard a secret.
 - **LangChain doesn't speak MCP natively** — the LangGraph agent bridges via `langchain-mcp-adapters`.
+- **Cedar runs in `LOG_ONLY`.** Policy decisions are traced, not enforced — so an unpermitted tool is still executed while being logged. Denial isn't real until the engine flips to `ENFORCE`.
+- **The eval harness is scaffolding.** `evals/` has the structure and the planned cases as comments; validating the deployed stack is still the manual sequence in [`BUILD.md`](BUILD.md).
+- **No CI yet.** `uv run pytest` and `ruff check .` run locally (and on every edit via the hooks in `.claude/`), but nothing enforces them on push.
+- **Long turns outlive the sync invocation window (~100s).** A cold full movie-night plan can complete server-side after the client has already disconnected; streaming or async invocation is the fix.
 
 ## License
 
