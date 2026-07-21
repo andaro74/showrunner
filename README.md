@@ -57,6 +57,16 @@ cp agentcore/local-config.example.json agentcore/local-config.json   # then fill
 uv run scripts/config.py render                                      # writes agentcore/agentcore.json
 ```
 
+`agentcore/aws-targets.json` is gitignored too, and `agentcore deploy` needs it — CDK reads the
+account and region from it and fails if your AWS credentials resolve elsewhere:
+
+```json
+[{ "name": "default", "description": "Default target", "account": "123456789012", "region": "us-west-2" }]
+```
+
+Deploying uses your ordinary AWS IAM credentials (profile, env vars, or SSO). The Cognito client
+secrets are *application* auth — they are never deploy credentials.
+
 Until you run `render` there is no manifest, so every `agentcore` command reports *"No agentcore
 project found."* See [`scripts/config.py`](scripts/config.py) for the full loop (and run `scrub`
 before committing, so CLI edits reach the template).
