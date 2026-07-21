@@ -101,6 +101,18 @@ remembered preferences from leaking into another user's movie night.
 Memory is optional: with no `AGENTCORE_MEMORY_ID` set, the agent runs statelessly (that's how the
 tests run — no AWS required).
 
+## Observability
+
+All three runtimes are OTEL-instrumented: the CDK wraps each entrypoint in
+`opentelemetry-instrument`, and `aws-opentelemetry-distro` routes the spans to CloudWatch's
+GenAI Observability (per-runtime `spans` log streams, `aws.service.type: gen_ai_agent`,
+transaction search for cross-runtime traces). One turn produces a connected trace: orchestrator
+→ specialist delegation → Gateway → MCP runtime. Two gotchas doing this yourself: the flag and
+the dependency are both required — the OTEL wrapper without the ADOT distro exports *nothing*,
+silently — and the tooling's defaults disagree (missing `instrumentation` key means **on** to
+the CDK, while `agentcore add agent` writes `false` for MCP runtimes). Details in
+[`BUILD.md`](BUILD.md).
+
 ## How it was built (build in public)
 
 The repo grows one verified, single-purpose commit at a time — so `git log` *is* the tutorial:

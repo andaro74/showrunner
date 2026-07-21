@@ -37,6 +37,11 @@ Add primitives with `agentcore add <memory|evaluator|online-eval|gateway|…>` �
 Keep `agents/orchestrator/memory_config.py` pointed at those exact paths or recall silently
 returns nothing.
 
+**Observability needs both halves:** `instrumentation: {enableOtel: true}` per runtime (set it
+explicitly — the CDK defaults a *missing* key to true, but `add agent` writes false on MCP
+runtimes) AND `aws-opentelemetry-distro` in deps. The OTEL wrapper without the ADOT distro runs
+clean and exports nothing — an empty `spans` log stream is the tell.
+
 ## Architecture — three layers (see PROJECT.md for detail)
 
 **Layer 1 · MCP servers (keyless, framework-agnostic).** FastMCP servers under `mcp_servers/`.

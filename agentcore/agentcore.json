@@ -16,7 +16,7 @@
       "runtimeVersion": "PYTHON_3_14",
       "networkMode": "PUBLIC",
       "instrumentation": {
-        "enableOtel": false
+        "enableOtel": true
       },
       "protocol": "MCP",
       "authorizerType": "CUSTOM_JWT",
@@ -37,7 +37,7 @@
       "runtimeVersion": "PYTHON_3_14",
       "networkMode": "PUBLIC",
       "instrumentation": {
-        "enableOtel": false
+        "enableOtel": true
       },
       "protocol": "MCP",
       "authorizerType": "CUSTOM_JWT",
@@ -69,6 +69,9 @@
             "exampleuserclientid0000001"
           ]
         }
+      },
+      "instrumentation": {
+        "enableOtel": true
       }
     }
   ],

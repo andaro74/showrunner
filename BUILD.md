@@ -516,6 +516,35 @@ Decisions and traps, each verified against the deployed runtime:
   short turns finish in ~30s. Use streaming (async-generator entrypoint) or async invocation
   when long plans matter.
 
+### Observability: one dependency and one flag
+
+AgentCore Observability is OTEL traces flowing to CloudWatch's GenAI views. Two pieces, and
+missing either one fails *silently*:
+
+```bash
+uv add aws-opentelemetry-distro          # the exporter wiring (ADOT)
+# agentcore.json, per runtime:  "instrumentation": {"enableOtel": true}
+agentcore deploy
+```
+
+- **The flag controls the entrypoint wrapper.** With `enableOtel`, the CDK deploys
+  `["opentelemetry-instrument", "<entrypoint>"]` instead of `["<entrypoint>"]`. Watch the
+  defaults disagree with each other: the CDK treats a *missing* `instrumentation` key as
+  **true**, while `agentcore add agent` wrote `false` for the MCP-protocol runtimes — so the
+  orchestrator was silently instrumented while the MCP servers silently weren't. Set it
+  explicitly on every runtime.
+- **The wrapper without ADOT exports nothing.** `opentelemetry-instrument` ran fine with only
+  the base OTEL SDK (a transitive dep of strands) — and the `spans` log stream stayed empty
+  through every invocation. No error anywhere; the spans simply had no exporter. Adding
+  `aws-opentelemetry-distro` is what routes them to CloudWatch.
+- **Verify by looking at the data, not the config.** Each runtime's log group grows a `spans`
+  stream: after one invocation, `spans` on the orchestrator AND on every MCP runtime the turn
+  touched should show fresh events (`aws.service.type: "gen_ai_agent"`, service name
+  `<runtime>.DEFAULT`). A `spans` stream that exists but has `lastEventTimestamp: null` is the
+  silent-failure signature. `agentcore traces` and the CloudWatch GenAI Observability console
+  read the same data; transaction search is enabled by the CLI at deploy (takes ~10 min to
+  start indexing).
+
 Prompt for the memory wiring:
 
 > Wire AgentCore Memory into the Strands agent: short-term for the active session, long-term to store the user's genre preferences and remembered picks. Add `agents/strands/memory_config.py` with named namespaces. Note in the README that Identity's inbound JWT is what makes per-user memory safe (anti-impersonation via the `sub` claim), even though TVmaze itself is keyless.
