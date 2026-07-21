@@ -516,6 +516,70 @@ Decisions and traps, each verified against the deployed runtime:
   short turns finish in ~30s. Use streaming (async-generator entrypoint) or async invocation
   when long plans matter.
 
+### Invoking the deployed ShowRunner agent
+
+The deployed orchestrator accepts exactly one credential: a Cognito **access token** minted by a
+real user against the *user* app client (`CUSTOM_JWT`, `allowedClients` = that client). Two
+consequences up front. First, a bare `agentcore invoke` fails — with no `--bearer-token` the CLI
+signs the request with SigV4/IAM, which this runtime is configured to reject. Second, **you must
+create a user in the pool before you can invoke at all** — the pool starts empty, and there is
+no anonymous path (that's the identity design working: no user, no `sub`, no memory actor).
+
+**One-time: create a test user.** Admin APIs need the AWS CLI (they're SigV4-signed). Keep the
+credentials in `.env` as `COGNITO_TEST_USERNAME` / `COGNITO_TEST_PASSWORD` — it's gitignored,
+it already holds strictly more sensitive values, and the `block_secrets` hook then guards
+against any commit that would leak them. Placeholders only in `.env.example`.
+
+```bash
+source .env
+aws cognito-idp admin-create-user --user-pool-id "$COGNITO_USER_POOL_ID" \
+  --username "$COGNITO_TEST_USERNAME" --message-action SUPPRESS --region "$AWS_REGION"
+aws cognito-idp admin-set-user-password --user-pool-id "$COGNITO_USER_POOL_ID" \
+  --username "$COGNITO_TEST_USERNAME" --password "$COGNITO_TEST_PASSWORD" \
+  --permanent --region "$AWS_REGION"
+```
+
+`SUPPRESS` skips the invite email; `--permanent` skips the forced password change so
+`USER_PASSWORD_AUTH` works immediately. Default password policy: 8+ chars, upper, lower,
+digit, symbol.
+
+**Every session: mint an access token.** Same recipe as the gateway smoke test above (the app
+client has a secret, so `SECRET_HASH` = base64(HMAC-SHA256(key=*client_secret*,
+msg=*username+client_id*))) — here via the AWS CLI instead of raw curl:
+
+```bash
+SECRET_HASH=$(printf '%s' "${COGNITO_TEST_USERNAME}${COGNITO_CLIENT_ID}" \
+  | openssl dgst -sha256 -hmac "$COGNITO_CLIENT_SECRET" -binary | base64)
+
+TOKEN=$(aws cognito-idp initiate-auth --auth-flow USER_PASSWORD_AUTH \
+  --client-id "$COGNITO_CLIENT_ID" \
+  --auth-parameters USERNAME="$COGNITO_TEST_USERNAME",PASSWORD="$COGNITO_TEST_PASSWORD",SECRET_HASH="$SECRET_HASH" \
+  --region "$AWS_REGION" --query 'AuthenticationResult.AccessToken' --output text)
+```
+
+**Invoke.** The CLI resolves the runtime endpoint and payload shape; the token is the only
+thing you supply:
+
+```bash
+agentcore invoke --runtime ShowRunner --bearer-token "$TOKEN" \
+  --prompt "What should I watch tonight?"
+```
+
+Verified behavior worth knowing:
+
+- **`--user-id` is ignored by ShowRunner.** The entrypoint derives the memory actor from the
+  *verified* JWT `sub` — a caller-supplied ID must not be able to impersonate anyone. Who you
+  are is decided by whose token you minted, full stop.
+- **The token rules from the gateway table apply unchanged**: access token → 200; ID token →
+  rejected (carries `aud`, not `client_id`); M2M token → rejected (that's the *gateway→runtime*
+  credential — the MCP runtimes trust it, the orchestrator deliberately doesn't).
+- **Sessions resume.** Each invoke prints a session id; pass it back with
+  `--session-id <id>` for conversation continuity (short-term memory replays the turns).
+- **Keep test prompts narrow.** A warm single-specialist question ("what's on NBC tonight?")
+  returns in ~30s; a cold full movie-night plan can outlive the ~100s sync connection window —
+  the server still completes and logs the turn even when the client disconnects.
+- Access tokens expire after 1 hour; re-run the `initiate-auth` step, not the user creation.
+
 ### Observability: one dependency and one flag
 
 AgentCore Observability is OTEL traces flowing to CloudWatch's GenAI views. Two pieces, and
