@@ -575,7 +575,7 @@ Verified behavior worth knowing:
   credential — the MCP runtimes trust it, the orchestrator deliberately doesn't).
 - **Sessions resume.** Each invoke prints a session id; pass it back with
   `--session-id <id>` for conversation continuity (short-term memory replays the turns).
-- **Keep test prompts narrow.** A warm single-specialist question ("what's on CBS tonight?")
+- **Keep test prompts narrow.** A warm single-specialist question ("what's on PBS tonight?")
   returns in ~30s; a cold full movie-night plan can outlive the ~100s sync connection window —
   the server still completes and logs the turn even when the client disconnects.
 - Access tokens expire after 1 hour; re-run the `initiate-auth` step, not the user creation.
