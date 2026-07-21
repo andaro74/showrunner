@@ -23,6 +23,12 @@ the real account / pool / client / gateway / runtime ids live only in gitignored
 `agentcore/local-config.json`. A fresh clone has no manifest until `render`, so every CLI command
 fails with *"No agentcore project found."* until you run it.
 
+**`update-user-pool` and `update-user-pool-client` REPLACE, they do not merge.** Any field you
+omit resets to its default, silently — which is why `scripts/harden_cognito.sh` does a
+read-modify-write (describe → keep everything `--generate-cli-skeleton` accepts → flip one flag →
+send it all back) rather than passing a lone `--admin-create-user-config`. Same reason nothing
+here renames an app client.
+
 **Cognito client secrets cannot be rotated in place** — there is no API. A replacement app client
 gets a new id, which `allowedClients` references, so rotation is a config change plus a deploy:
 `scripts/rotate_cognito_secrets.sh` (dry run by default, `--apply` to execute). It creates the

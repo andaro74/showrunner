@@ -206,6 +206,7 @@ showrunner/
 - **Cedar is default-deny, so a new gateway tool without a permit is refused.** That is the intended behaviour, but it means adding a tool and forgetting `policies/tools/` fails at call time, not at deploy time.
 - **The eval harness is scaffolding.** `evals/` has the structure and the planned cases as comments; validating the deployed stack is still the manual sequence in [`BUILD.md`](BUILD.md).
 - **No CI yet.** `uv run pytest` and `ruff check .` run locally (and on every edit via the hooks in `.claude/`), but nothing enforces them on push.
+- **Deploying your own copy publicly? Read [BUILD.md Phase 14](BUILD.md#phase-14--hardening-before-you-publish) first.** Cognito ships with self-signup open, the deploy packager copies `.env` into the container image regardless of `.gitignore`, and `update-user-pool` resets any field you omit. `scripts/harden_cognito.sh` and `scripts/rotate_cognito_secrets.sh` handle those; `uv run pytest` fails if a deployment identifier reaches a tracked file.
 - **Long turns outlive the sync invocation window (~100s).** A cold full movie-night plan can complete server-side after the client has already disconnected; streaming or async invocation is the fix.
 
 ## License

@@ -468,8 +468,9 @@ Observed responses, which is the fastest way to tell *which* thing is wrong:
 That 403 on the M2M token is the design working: the two hops deliberately use different
 credentials, and that separation is exactly what closes the direct-runtime bypass.
 
-One caveat worth stating plainly: delete the demo user afterwards (`admin-delete-user`). Left
-behind, it is a standing credential against a live gateway.
+One caveat worth stating plainly: delete the demo user afterwards. Left behind, it is a standing
+credential against a live gateway — `bash scripts/harden_cognito.sh --delete-user <name> --apply`,
+or see [Phase 14](#phase-14--hardening-before-you-publish) for the full pre-publication pass.
 
 Note that authorization is only testable once the engine is in `ENFORCE` (it is now — see
 [`policies/README.md`](policies/README.md)). Under `LOG_ONLY` this sequence exercises
@@ -562,6 +563,19 @@ TOKEN=$(aws cognito-idp initiate-auth --auth-flow USER_PASSWORD_AUTH \
   --region "$AWS_REGION" --query 'AuthenticationResult.AccessToken' --output text)
 ```
 
+Two habits worth keeping here. **Don't `echo "$TOKEN"`** — it is a live credential for a full
+hour, and terminal output has a way of ending up in screenshots and blog posts. Print a prefix
+if you need to confirm it is non-empty:
+
+```bash
+echo "token: ${TOKEN:0:12}... (${#TOKEN} chars)"
+```
+
+And note that both this recipe and the gateway smoke test pass the client secret as a command
+argument (`openssl -hmac "$COGNITO_CLIENT_SECRET"`), so it is visible in `ps` and lands in shell
+history. Fine on a personal box; on anything shared, feed the parameters via
+`--cli-input-json file://...` instead.
+
 **Invoke.** The CLI resolves the runtime endpoint and payload shape; the token is the only
 thing you supply:
 
@@ -569,6 +583,74 @@ thing you supply:
 agentcore invoke --runtime ShowRunner --bearer-token "$TOKEN" \
   --prompt "What should I watch tonight?"
 ```
+
+**Example prompts.** The one above is a warm single-specialist question. These three exercise the
+full orchestration — both specialists, plus a travel-time hop in the first. They are manual
+smoke tests; `evals/cases.yaml` is still `cases: []`, so nothing runs them automatically yet.
+Quote `"$TOKEN"`, and quote any variable that could contain a shell metacharacter:
+
+```bash
+agentcore invoke --runtime ShowRunner --bearer-token "$TOKEN" \
+  --session-id "eval-session-showrunner-success-001" \
+  --prompt "Movie night in Seattle tonight - what should I watch, and is there a cinema near Pike Place with time for dinner first?"
+
+agentcore invoke --runtime ShowRunner --bearer-token "$TOKEN" \
+  --session-id "eval-session-showrunner-success-002" \
+  --prompt "Staying at home this weekend in Studio City, CA - what should I watch, and are there any restaurants around that I can order dinner?"
+
+agentcore invoke --runtime ShowRunner --bearer-token "$TOKEN" \
+  --session-id "eval-session-showrunner-success-003" \
+  --prompt "Visiting my niece in New York City over the weekend - what movies, shows or plays should we go to, and are there any restaurants around for lunch?"
+```
+
+All three are the *cold, full-plan* path, so expect them to run long — see the ~100s connection
+window below. Reuse a `--session-id` to continue a conversation; change it to start clean.
+
+**What a full plan looks like.** Abridged output from the third prompt:
+
+```text
+## 🗽 Your NYC Weekend Plan
+
+### 📺 The Pick
+> **America's Got Talent** — "Auditions 7" · NBC at 8:00 PM
+> Easy, reaction-driven fun for any age.
+
+### 🎬 The Cinema
+> **AMC Loews Lincoln Square 13** — Broadway & 68th St, Upper West Side
+> The Walter Reade Theater at Lincoln Center is also steps away.
+
+### 🍽️ The Lunch Stop
+> **The Smith** — Broadway & 70th St (2 blocks from the cinema)
+> American brasserie, open from 9 AM on weekends.
+
+### 🗺️ Travel Time
+> **The Smith → AMC Loews Lincoln Square 13:** a 4-5 minute stroll down Broadway.
+
+### ⭐ Recommended Combo
+Lunch at The Smith → afternoon film at AMC Loews → home for AGT at 8 PM.
+
+> 🎭 For Broadway plays, check TodayTix.com or Playbill.com for weekend availability.
+
+Session: eval-session-showrunner-success-003
+To resume: agentcore invoke --session-id eval-session-showrunner-success-003
+```
+
+**Read that output critically — not all of it is tool-grounded**, and the difference is the whole
+point of the MCP layer:
+
+| Part | Source |
+|---|---|
+| The TV pick and airtime | `get_schedule` — grounded |
+| The cinema and the restaurant | `find_nearby` — grounded (real OSM amenities) |
+| The travel number | `travel_time` — grounded |
+| "a 4-5 minute **stroll**" | **model framing.** `travel_time` is driving-only (`/route/v1/driving`, [osrm_client.py](mcp_servers/places/osrm_client.py)); there is no walking profile. The number is a *driving* estimate. |
+| Broadway plays, TodayTix/Playbill | **model knowledge.** No theater tool exists — tvmaze covers TV only (`search_shows`, `get_schedule`, `get_episodes`, `get_cast`). |
+| Which *film* to see | **not available.** `find_nearby` returns cinema *locations*, never showtimes or listings. |
+
+The prompt asked for "movies, shows or plays" and the agent answered all three, but only the TV
+half is backed by a tool. That is a useful thing to see rather than hide: the model fills gaps
+confidently and without a visible seam. If you want those gaps closed, they are new MCP tools
+(a listings API, a ticketing API) and a walking profile on OSRM — not prompt tuning.
 
 Verified behavior worth knowing:
 
@@ -644,6 +726,93 @@ git push -u origin main
 ```
 
 If Claude ever drifts mid-build, rewind with **Esc Esc** to an earlier checkpoint and retry with a tighter prompt rather than fighting it forward.
+
+---
+
+## Phase 14 — Hardening before you publish
+
+Making the repo public is a different threat model from building it. A reader cannot call your
+agents — they would need a client secret and a user credential, neither of which is in the repo —
+but a published architecture invites *targeted* traffic at a live, billable endpoint. Five things,
+in this order. The first four are one-time; the fifth is the one to re-run.
+
+**1. Get deployment identifiers out of git.** `agentcore.json` and the Cedar permits carry the AWS
+account, Cognito pool, both app client ids, the gateway id, and the runtime ids. `scripts/config.py`
+templates them: the tracked files hold `${PLACEHOLDER}`s, the real values live in gitignored
+`agentcore/local-config.json`, and `render` generates the manifest the CLI reads. Also stop tracking
+`agentcore/.cli/deployed-state.json` — it inventories IAM role names and the Secrets Manager ARN
+behind the gateway's OAuth credential.
+
+`tests/test_config_template.py` scans **every tracked file** for those values, so a stray paste into
+a doc or a test fixture fails the suite rather than shipping.
+
+**2. Rotate any secret that was ever bundled into a deploy.** Runtimes are packaged with
+`codeLocation: "./"`, and the CLI copies the repo root verbatim — including `.env` — into
+`agentcore/.cache/<Runtime>/staging/`. It honours neither `.gitignore` nor `.dockerignore` and has
+no exclusion flag, so whatever was in `.env` at deploy time is inside the container image.
+
+Cognito **cannot** rotate a client secret in place; you create a replacement app client, which
+issues a new client id that `allowedClients` references. Two phases, so a failed deploy never locks
+you out:
+
+```bash
+bash scripts/rotate_cognito_secrets.sh --apply    # replacements + credential + render
+agentcore deploy --diff                           # confirm the new client ids appear
+agentcore deploy
+# verify: mint a user token, invoke the agent, confirm the gateway reaches the MCP tools
+bash scripts/rotate_cognito_secrets.sh --retire --apply   # only now is the old secret dead
+```
+
+Deploy credentials are ordinary AWS IAM (profile / env / SSO) and are unrelated to the Cognito
+secrets. CDK pins account and region from gitignored `agentcore/aws-targets.json` and fails if your
+credentials resolve elsewhere — worth checking with `aws sts get-caller-identity` if you have more
+than one profile.
+
+**3. Close self-signup.** The pool ships with `AllowAdminCreateUserOnly=false`, so `SignUp` is open
+to the internet; the only thing stopping a stranger from registering is that `SignUp` requires a
+`SECRET_HASH` derived from the app client secret. That is a single control carrying the whole
+perimeter. Nothing here uses `SignUp` — users are created with `admin-create-user` — so closing it
+costs nothing.
+
+```bash
+bash scripts/harden_cognito.sh            # dry run: prints the exact payload it would send
+bash scripts/harden_cognito.sh --apply
+```
+
+Do **not** hand-write this call. `update-user-pool` is a *replace*, not a merge: any field you omit
+is silently reset to its default, so a lone `--admin-create-user-config` would wipe `Policies`,
+`MfaConfiguration`, `AccountRecoverySetting`, `LambdaConfig`, tags, and the verification templates.
+The script does a read-modify-write, deriving the accepted-field list from
+`--generate-cli-skeleton` at runtime so a field AWS adds later is preserved rather than dropped.
+It also maps `Name` → `PoolName`, without which the call **renames your pool**.
+`update-user-pool-client` has the identical footgun, which is why nothing here renames an app client.
+
+**4. Delete the demo users.** Each is a standing credential against a live gateway, and
+`.env.example` publishes the test username. Deletion is irreversible, so name each one explicitly:
+
+```bash
+bash scripts/harden_cognito.sh --list-users
+bash scripts/harden_cognito.sh --delete-user showrunner-tester --apply
+```
+
+**5. Re-check before you push.** `uv run pytest` covers the leak scan, but confirm the working tree
+too — the CLI rewrites the manifest, and `.env` copies have a way of appearing:
+
+```bash
+uv run scripts/config.py scrub        # capture any CLI edits back into the template
+uv run pytest                         # leak scan over every tracked file
+find . -name ".env" -not -path "./.venv/*"   # expect exactly one: ./.env
+git status --porcelain --ignored | grep -i env
+```
+
+The scripts all `cd` to the repo root first. That is deliberate: they resolve `.env` relative to
+the repo, not your shell, because `upsert_env` starts with `touch` — running one from `scripts/`
+used to create a *second* `.env` there holding a real client secret while the real one went
+unchanged.
+
+What survives all this in the tracked tree is the AWS **region** (`us-west-2`) — a public name and a
+legitimate default throughout the source, and the one value the leak scan deliberately exempts.
+Everything else is a placeholder.
 
 ---
 
