@@ -42,9 +42,84 @@ uv sync                                   # rebuild the exact environment from t
 
 uv run pytest                             # everything green?
 
-uv run python mcp_servers/tvmaze/server.py   # run a server standalone
+uv run python -m mcp_servers.tvmaze.server   # run a server over stdio (how agents/tests use it)
+uv run mcp_servers/serve_tvmaze.py           # or standalone over HTTP → http://localhost:8000/mcp
 uv run python -m agents.orchestrator.agent   # serve the orchestrator locally (:8080)
 ```
+
+Two ways to run a server, because it speaks two transports from one codebase
+([`mcp_servers/runtime.py`](mcp_servers/runtime.py)):
+
+- **stdio** (default) — `python -m mcp_servers.tvmaze.server`. No port; it waits for a JSON-RPC
+  peer on stdin, so run bare it just sits there. This is the path the agents and every test use
+  (the agent spawns it as a private subprocess).
+- **streamable-http** — `uv run mcp_servers/serve_tvmaze.py` binds `0.0.0.0:8000` and serves MCP
+  at `/mcp` (override with `MCP_HOST` / `MCP_PORT`). This is the standalone listening server, and
+  the same shape each server runs in when deployed as its own AgentCore Runtime behind the Gateway.
+  `MCP_TRANSPORT` overrides the default either way. (Use `serve_places.py` for the places server.)
+
+  Note: run the **module** (`-m mcp_servers.tvmaze.server`) or the **entry file**
+  (`mcp_servers/serve_tvmaze.py`) — not `python mcp_servers/tvmaze/server.py` directly, which
+  fails with `ModuleNotFoundError: No module named 'mcp_servers'` because executing the file puts
+  its own directory on `sys.path` instead of the repo root.
+
+### Smoke-test the HTTP server
+
+[`scripts/smoke_tvmaze.py`](scripts/smoke_tvmaze.py) connects to a running server, lists the
+tools, and calls `search_shows`. The server is a **long-running foreground process**, so start it
+in **one terminal** and run the client in **a second** — the client only *connects*, it never
+starts the server.
+
+**Terminal 1 — start the server** (leave it running; it prints `Uvicorn running on
+http://0.0.0.0:8000` and waits):
+
+```bash
+uv run mcp_servers/serve_tvmaze.py            # binds 0.0.0.0:8000, serves /mcp
+```
+
+**Terminal 2 — run the client** (defaults to `http://localhost:8000/mcp`, matching the server):
+
+```bash
+uv run scripts/smoke_tvmaze.py                # default query
+uv run scripts/smoke_tvmaze.py "the wire"     # custom query, still :8000
+```
+
+Both ends default to **port 8000**, so no URL argument is needed. Pass a URL only if you changed
+the server's port — and then it must match. For example, to use 9000 you must start the server on
+9000 *and* point the client at 9000:
+
+```bash
+# terminal 1                                  # terminal 2
+MCP_PORT=9000 uv run mcp_servers/serve_tvmaze.py   uv run scripts/smoke_tvmaze.py http://127.0.0.1:9000/mcp "the wire"
+```
+
+If the client prints `could not connect`, no server is listening on that port — check Terminal 1
+is still running and on the same port.
+
+> **Windows PowerShell note.** PowerShell 5.1 does **not** background a command with a trailing
+> `&` (it's a parse error), so you can't start the server and client in one window that way. Use
+> two terminals as above, or start the server as a job: `Start-Job { uv run
+> mcp_servers/serve_tvmaze.py }`. Set the port with `$env:MCP_PORT=9000` (not the bash
+> `MCP_PORT=9000 …` prefix). To free a stuck port:
+> `Get-NetTCPConnection -LocalPort 8000 -State Listen | ForEach-Object { Stop-Process -Id $_.OwningProcess -Force }`
+
+The **places** server works the same way, with [`scripts/smoke_places.py`](scripts/smoke_places.py).
+It exercises all three tools end to end — `geocode` a location, `find_nearby` cinemas at those
+coordinates, then `travel_time` to a second point:
+
+```bash
+# terminal 1 — start the places server
+uv run mcp_servers/serve_places.py            # binds 0.0.0.0:8000, serves /mcp
+
+# terminal 2 — run the client (default location, or pass your own)
+uv run scripts/smoke_places.py                            # Times Square, New York
+uv run scripts/smoke_places.py "Union Square, San Francisco"
+```
+
+Two things to expect: both servers default to **port 8000**, so run only one at a time on the
+default port (or give the second a different `MCP_PORT` and point its client at that URL). And
+`find_nearby` calls OpenStreetMap's public Overpass API, which is rate-limited and sometimes
+answers `504 Gateway Timeout` — that's upstream flakiness, not a bug; just re-run.
 
 Copy `.env.example` to `.env` if you're wiring up the AgentCore layer; the core demo needs no secrets.
 
